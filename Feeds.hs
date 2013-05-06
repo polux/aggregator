@@ -6,11 +6,15 @@ module Feeds (
   feedToData,
 
   getAllFeeds,
-  insertOrUpdateData
+  setItemRead,
+  setItemStarred,
+
+  insertOrUpdateData,
 ) where
 
 import qualified Text.Feed.Types as F
-import qualified Data as D 
+import qualified Data as D
+import qualified Data.Text as T
 import Text.Feed.Query
 import Database.Persist
 import Data.Aeson
@@ -20,6 +24,7 @@ import Data.Time.RFC2822 (readRFC2822)
 import Data.Time.RFC3339 (readRFC3339)
 import Data.Time.Clock.POSIX (utcTimeToPOSIXSeconds)
 import Control.Applicative ((<|>))
+import Web.PathPieces (toPathPiece)
 
 {-
  - There are three different Feed (resp. Items) datatypes:
@@ -31,7 +36,7 @@ import Control.Applicative ((<|>))
  -}
 
 data Feed = Feed
-    { feedId :: String
+    { feedId :: T.Text
     , feedTitle :: String
     , feedItems :: [Item]
     }
@@ -39,7 +44,7 @@ data Feed = Feed
 
 
 data Item = Item
-    { itemId :: String
+    { itemId :: T.Text
     , itemDate :: Int
     , itemTitle :: String
     , itemContent :: String
@@ -111,21 +116,35 @@ insertOrUpdateData newFeed newItems = D.runDb $ do
         insertOrUpdateItem newItem = do
           maybeItem <- getBy unique
           case maybeItem of
-            Just item -> replace (entityKey item) newItem
+            -- we leave parent, guid, starred and read unchanged on purpose
+            Just item -> update (entityKey item) [ D.ItemTitle =. D.itemTitle newItem
+                                                 , D.ItemLink =. D.itemLink newItem
+                                                 , D.ItemContent =. D.itemContent newItem
+                                                 , D.ItemAuthor =. D.itemAuthor newItem
+                                                 ]
             Nothing -> do insert newItem
                           return ()
 
           where unique = D.UniqueItem (D.itemParent newItem) 
                                       (D.itemGuid newItem)
 
+-- set an Item's 'read' status
+setItemRead :: D.ItemId -> Bool -> IO ()
+setItemRead itemKey value = D.runDb $ update itemKey [ D.ItemRead =. value ] 
+
+-- set an Item's 'read' status
+setItemStarred :: D.ItemId -> Bool -> IO ()
+setItemStarred itemKey value = D.runDb $ update itemKey [ D.ItemStarred =. value ] 
+
+
 -- converts a database item entity into a message
 dataToItem ::  Entity D.Item -> Item
 dataToItem (Entity k (D.Item _ _ title url content date author starred read)) = 
-  Item (show k) (round $ utcTimeToPOSIXSeconds date) title content url author 
+  Item (toPathPiece k) (round $ utcTimeToPOSIXSeconds date) title content url author 
        starred read
 
 -- converts a database feed entity and a list of message items into a message feed
-dataToFeed (Entity k (D.Feed title _)) items = Feed (show k) title items
+dataToFeed (Entity k (D.Feed title _)) items = Feed (toPathPiece k) title items
 
 -- get all the feeds from the database as messages
 getAllFeeds :: IO [Feed]
