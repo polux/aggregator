@@ -12,22 +12,34 @@ data HelloWorld = HelloWorld
 mkYesod "HelloWorld" [parseRoutes|
 /feeds FeedsR GET
 /items/#D.ItemId/read ItemReadR POST
+/items/#D.ItemId/starred ItemStarredR POST
 |]
 
 instance Yesod HelloWorld
 
-getFeedsR :: Handler RepJson
-getFeedsR = do
+withAuth :: Handler a -> Handler a
+withAuth handler = do
   setHeader "Access-Control-Allow-Origin" "*"
+  handler
+
+getFeedsR :: Handler RepJson
+getFeedsR = withAuth $ do
   feeds <- liftIO $ F.getAllFeeds
   jsonToRepJson feeds
 
-postItemReadR :: D.ItemId -> Handler ()
-postItemReadR itemKey = do
+setBoolValueR :: (D.ItemId -> Bool -> IO ()) -> D.ItemId -> Handler ()
+setBoolValueR setter itemId = withAuth $ do
   mvalue <- lookupPostParam "value"
   case mvalue >>= readMay . T.unpack of
-    Just value -> liftIO $ F.setItemRead itemKey value
+    Just value -> liftIO $ setter itemId value
     Nothing -> invalidArgs [T.pack "value"]
+
+
+postItemReadR :: D.ItemId -> Handler ()
+postItemReadR = setBoolValueR setItemRead
+
+postItemStarredR :: D.ItemId -> Handler ()
+postItemStarredR = setBoolValueR setItemStarred
 
 main :: IO ()
 main = do
