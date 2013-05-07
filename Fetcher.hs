@@ -31,11 +31,13 @@ fetchAndInsert url = do
 slashdot = "http://rss.slashdot.org/Slashdot/slashdot"
 redditHaskell = "http://www.reddit.com/r/haskell/.rss"
 dartNews = "http://news.dartlang.org/feeds/posts/default"
+droneIo = "http://blog.drone.io/atom.xml"
 
 fetchAll = do
   fetchAndInsert slashdot
   fetchAndInsert redditHaskell
   fetchAndInsert dartNews
+  fetchAndInsert droneIo
 
 logMsg str = do
   now <- getCurrentTime

@@ -25,6 +25,13 @@ import Data.Time.RFC3339 (readRFC3339)
 import Data.Time.Clock.POSIX (utcTimeToPOSIXSeconds)
 import Control.Applicative ((<|>))
 import Web.PathPieces (toPathPiece)
+import Html (cleanupHtml)
+
+import qualified Text.RSS.Syntax  as RSS
+import qualified Text.Atom.Feed   as Atom
+import qualified Text.RSS1.Syntax as RSS1
+import qualified Text.XML.Light as XML
+import qualified Text.Feed.Types as Feed
 
 {-
  - There are three different Feed (resp. Items) datatypes:
@@ -82,6 +89,17 @@ orElse Nothing  x = x
 parseDate :: String -> Maybe UTCTime
 parseDate date = fmap zonedTimeToUTC (readRFC2822 date <|> readRFC3339 date)
 
+-- Extracts the description of a feed item. Replace the feed package's broken
+-- getItemDescription function.
+extractDescription :: ItemGetter String
+extractDescription (Feed.RSSItem  e) = RSS.rssItemDescription e
+extractDescription (Feed.RSS1Item i) = RSS1.itemDesc i
+extractDescription (Feed.XMLItem _) = Nothing
+extractDescription (Feed.AtomItem e) = fmap contentToStr $ Atom.entryContent e
+  where contentToStr (Atom.TextContent s) = s
+        contentToStr (Atom.HTMLContent s) = s
+        contentToStr (Atom.XHTMLContent s) = XML.strContent s
+
 -- converts a 'feeds' package feed into data ready to be inserted
 feedToData 
   :: String                         -- origin (unique)
@@ -95,7 +113,7 @@ feedToData origin defaultDate feed = (dfeed, ditems)
           where guid = (snd `fmap` getItemId item) `orElse` url
                 title = getItemTitle item `orElse` ""
                 url = getItemLink item `orElse` ""
-                content = getItemDescription item `orElse` ""
+                content = (cleanupHtml `fmap` extractDescription item) `orElse` ""
                 date = (getItemDate item >>= parseDate) `orElse` defaultDate
                 author = getItemAuthor item `orElse` ""
 
