@@ -1,16 +1,17 @@
-{-# LANGUAGE QuasiQuotes, TemplateHaskell, TypeFamilies, OverloadedStrings #-}
-{-# LANGUAGE GADTs, FlexibleContexts, EmptyDataDecls #-}
+{-# LANGUAGE QuasiQuotes, TemplateHaskell, TypeFamilies, OverloadedStrings,
+             GADTs, FlexibleContexts, EmptyDataDecls #-}
 
 module Data where
 
 import Database.Persist
+import Database.Persist.Sql
 import Database.Persist.Sqlite
 import Database.Persist.TH
 import Data.Time
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Resource (runResourceT)
 
-share [mkPersist sqlSettings, mkMigrate "migrateAll"] [persist|
+share [mkPersist sqlSettings, mkMigrate "migrateAll"] [persistUpperCase|
 Item
     parent FeedId
     guid String

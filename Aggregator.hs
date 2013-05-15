@@ -19,10 +19,10 @@ instance Yesod HelloWorld
 
 withAuth :: Handler a -> Handler a
 withAuth handler = do
-  setHeader "Access-Control-Allow-Origin" "*"
+  addHeader "Access-Control-Allow-Origin" "*"
   handler
 
-getFeedsR :: Handler RepJson
+getFeedsR :: Handler Value
 getFeedsR = withAuth $ do
   feeds <- liftIO $ F.getAllFeeds
   jsonToRepJson feeds
@@ -45,4 +45,4 @@ main :: IO ()
 main = do
   initializeDb
   startFetcher
-  warpDebug 3000 HelloWorld
+  warp 3000 HelloWorld

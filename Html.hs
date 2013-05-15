@@ -21,6 +21,7 @@ cleanupHtml' t = transformTree cleanup t
   where cleanup (TagBranch "iframe" _ _) = []
         cleanup (TagBranch "img" _ _) = []
         cleanup (TagBranch tag _ children) | tag /= "br" && onlyBlank children = []
+        cleanup (TagBranch "a" attrs children) = [TagBranch "a" (("target", "_blank"):filterAttrs attrs) children]
         cleanup (TagBranch tag attrs children) = [TagBranch tag (filterAttrs attrs) children]
         cleanup (TagLeaf leaf) = map TagLeaf (cleanupLeaf leaf)
 
