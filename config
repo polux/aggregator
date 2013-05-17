@@ -1,0 +1,9 @@
+Configuration {
+  database = "foo",
+  feeds = [
+    "http://localhost:8000/slashdot.rss",
+    "http://localhost:8000/proggit.rss",
+    "http://localhost:8000/dart.rss",
+    "http://localhost:8000/nyt.rss"
+  ]
+}

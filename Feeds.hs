@@ -6,12 +6,15 @@ module Feeds (
   feedToData,
 
   getAllFeeds,
+  getItems,
   setItemRead,
   setItemStarred,
+  markAllAsRead,
 
   insertOrUpdateData,
 ) where
 
+import Configuration
 import qualified Text.Feed.Types as F
 import qualified Data as D
 import qualified Data.Text as T
@@ -118,8 +121,8 @@ feedToData origin defaultDate feed = (dfeed, ditems)
                 author = getItemAuthor item `orElse` ""
 
 -- Inserts or update a data feed and associated Items in the database
-insertOrUpdateData :: D.Feed -> (D.FeedId -> [D.Item]) -> IO ()
-insertOrUpdateData newFeed newItems = D.runDb $ do
+insertOrUpdateData :: Configuration -> D.Feed -> (D.FeedId -> [D.Item]) -> IO ()
+insertOrUpdateData config newFeed newItems = D.runDb config $ do
   feedId <- insertOrUpdateFeed 
   mapM_ insertOrUpdateItem (newItems feedId)
 
@@ -147,13 +150,26 @@ insertOrUpdateData newFeed newItems = D.runDb $ do
                                       (D.itemGuid newItem)
 
 -- set an Item's 'read' status
-setItemRead :: D.ItemId -> Bool -> IO ()
-setItemRead itemKey value = D.runDb $ update itemKey [ D.ItemRead =. value ] 
+setItemRead :: Configuration -> D.ItemId -> Bool -> IO ()
+setItemRead config itemKey value = D.runDb config $ update itemKey [ D.ItemRead =. value ] 
 
 -- set an Item's 'read' status
-setItemStarred :: D.ItemId -> Bool -> IO ()
-setItemStarred itemKey value = D.runDb $ update itemKey [ D.ItemStarred =. value ] 
-
+setItemStarred :: Configuration -> D.ItemId -> Bool -> IO ()
+setItemStarred config itemKey value = D.runDb config $ update itemKey [ D.ItemStarred =. value ] 
+-- marks all items in a feed as read
+markAllAsRead :: Configuration -> D.FeedId -> IO ()
+markAllAsRead config feedKey = D.runDb config $ do
+  -- TODO: get list of keys only
+  items <- selectList [D.ItemParent ==. feedKey] []
+  mapM_ markAsRead (map entityKey items)
+    where markAsRead itemKey = update itemKey [ D.ItemRead =. True ]
+  
+-- get all items in a feed
+getItems :: Configuration -> D.FeedId -> IO [Item]
+getItems config feedKey = D.runDb config $ do
+  items <- selectList [D.ItemParent ==. feedKey] [Desc D.ItemDate]
+  return $ map dataToItem items
+  
 
 -- converts a database item entity into a message
 dataToItem ::  Entity D.Item -> Item
@@ -165,8 +181,8 @@ dataToItem (Entity k (D.Item _ _ title url content date author starred read)) =
 dataToFeed (Entity k (D.Feed title _)) items = Feed (toPathPiece k) title items
 
 -- get all the feeds from the database as messages
-getAllFeeds :: IO [Feed]
-getAllFeeds = D.runDb $ do
+getAllFeeds :: Configuration -> IO [Feed]
+getAllFeeds config = D.runDb config $ do
   feeds <- selectList [] []
   mapM fill feeds
   where fill entity = do

@@ -1,16 +1,20 @@
 {-# LANGUAGE TypeFamilies, QuasiQuotes, MultiParamTypeClasses,
              TemplateHaskell, OverloadedStrings #-}
 import Yesod
-import Data as D
-import Feeds as F
+import qualified Data as D
+import qualified Feeds as F
+import qualified Configuration as C
 import Fetcher
 import Safe (readMay)
 import Data.Text as T
+import System.Environment (getArgs)
 
-data HelloWorld = HelloWorld
+data HelloWorld = HelloWorld { configuration :: C.Configuration }
 
 mkYesod "HelloWorld" [parseRoutes|
 /feeds FeedsR GET
+/feeds/#D.FeedId/items ItemsR GET
+/feeds/#D.FeedId/readAll FeedReadAllR POST
 /items/#D.ItemId/read ItemReadR POST
 /items/#D.ItemId/starred ItemStarredR POST
 |]
@@ -22,27 +26,51 @@ withAuth handler = do
   addHeader "Access-Control-Allow-Origin" "*"
   handler
 
+getConfig = configuration `fmap` getYesod
+
 getFeedsR :: Handler Value
 getFeedsR = withAuth $ do
-  feeds <- liftIO $ F.getAllFeeds
+  config <- getConfig
+  feeds <- liftIO $ F.getAllFeeds config
   jsonToRepJson feeds
 
-setBoolValueR :: (D.ItemId -> Bool -> IO ()) -> D.ItemId -> Handler ()
+getItemsR :: D.FeedId -> Handler Value
+getItemsR feedId = withAuth $ do
+  config <- getConfig
+  items <- liftIO $ F.getItems config feedId
+  jsonToRepJson items
+
+setBoolValueR :: (C.Configuration -> D.ItemId -> Bool -> IO ()) -> D.ItemId -> Handler ()
 setBoolValueR setter itemId = withAuth $ do
   mvalue <- lookupPostParam "value"
+  config <- getConfig
   case mvalue >>= readMay . T.unpack of
-    Just value -> liftIO $ setter itemId value
+    Just value -> liftIO $ setter config itemId value
     Nothing -> invalidArgs [T.pack "value"]
 
 
 postItemReadR :: D.ItemId -> Handler ()
-postItemReadR = setBoolValueR setItemRead
+postItemReadR = setBoolValueR F.setItemRead
 
 postItemStarredR :: D.ItemId -> Handler ()
-postItemStarredR = setBoolValueR setItemStarred
+postItemStarredR = setBoolValueR F.setItemStarred
+
+postFeedReadAllR :: D.FeedId -> Handler ()
+postFeedReadAllR feedId = do
+  config <- getConfig
+  liftIO $ F.markAllAsRead config feedId
+
+loadConfiguration :: FilePath -> IO C.Configuration
+loadConfiguration file = do
+  contents <- readFile file
+  case C.parseConfiguration contents of
+    Just x -> return x
+    Nothing -> error "config parse error"
 
 main :: IO ()
 main = do
-  initializeDb
-  startFetcher
-  warp 3000 HelloWorld
+  [arg] <- getArgs
+  config <- loadConfiguration arg
+  D.initializeDb config
+  startFetcher config
+  warp 3000 (HelloWorld config)
