@@ -5,6 +5,7 @@ module Feeds (
   Item(..),
   feedToData,
 
+  getFeed,
   getAllFeeds,
   getItems,
   setItemRead,
@@ -48,7 +49,7 @@ import qualified Text.Feed.Types as Feed
 data Feed = Feed
     { feedId :: T.Text
     , feedTitle :: String
-    , feedItems :: [Item]
+    , feedUnreadCount :: Int
     }
   deriving (Show)
 
@@ -66,10 +67,10 @@ data Item = Item
   deriving (Show)
 
 instance ToJSON Feed where
-  toJSON (Feed id title items) =
+  toJSON (Feed id title unreadCount) =
     object [ "id" .= id
            , "title" .= title
-           , "items" .= items
+           , "unreadCount" .= unreadCount
            ]
 
 instance ToJSON Item where
@@ -168,23 +169,36 @@ markAllAsRead config feedKey = D.runDb config $ do
 getItems :: Configuration -> D.FeedId -> IO [Item]
 getItems config feedKey = D.runDb config $ do
   items <- selectList [D.ItemParent ==. feedKey] [Desc D.ItemDate]
-  return $ map dataToItem items
+  return $ map dataToMessageItem items
   
 
 -- converts a database item entity into a message
-dataToItem ::  Entity D.Item -> Item
-dataToItem (Entity k (D.Item _ _ title url content date author starred read)) = 
+dataToMessageItem ::  Entity D.Item -> Item
+dataToMessageItem (Entity k (D.Item _ _ title url content date author starred read)) = 
   Item (toPathPiece k) (round $ utcTimeToPOSIXSeconds date) title content url author 
        starred read
 
 -- converts a database feed entity and a list of message items into a message feed
-dataToFeed (Entity k (D.Feed title _)) items = Feed (toPathPiece k) title items
+dataToMessageFeed k (D.Feed title _) = do
+  -- TODO: count instead of select + length
+  items <- selectList [D.ItemParent ==. k, D.ItemRead ==. False] []
+  return $ Feed (toPathPiece k) title (length items)
+
+
+-- get a feed by id
+getFeed :: Configuration -> D.FeedId -> IO (Maybe Feed)
+getFeed config feedId = D.runDb config $ do
+  mfeed <- get feedId
+  case mfeed of
+    Just feed -> do
+      result <- dataToMessageFeed feedId feed
+      return (Just result)
+    Nothing -> return Nothing
 
 -- get all the feeds from the database as messages
 getAllFeeds :: Configuration -> IO [Feed]
 getAllFeeds config = D.runDb config $ do
   feeds <- selectList [] []
   mapM fill feeds
-  where fill entity = do
-          items <- selectList [D.ItemParent ==. entityKey entity] [Desc D.ItemDate]
-          return $ dataToFeed entity (map dataToItem items)
+  
+  where fill (Entity key feed) = dataToMessageFeed key feed

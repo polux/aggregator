@@ -13,6 +13,7 @@ data HelloWorld = HelloWorld { configuration :: C.Configuration }
 
 mkYesod "HelloWorld" [parseRoutes|
 /feeds FeedsR GET
+/feeds/#D.FeedId FeedR GET
 /feeds/#D.FeedId/items ItemsR GET
 /feeds/#D.FeedId/readAll FeedReadAllR POST
 /items/#D.ItemId/read ItemReadR POST
@@ -33,6 +34,14 @@ getFeedsR = withAuth $ do
   config <- getConfig
   feeds <- liftIO $ F.getAllFeeds config
   jsonToRepJson feeds
+
+getFeedR :: D.FeedId -> Handler Value
+getFeedR feedId = withAuth $ do
+  config <- getConfig
+  mfeed <- liftIO $ F.getFeed config feedId
+  case mfeed of
+    Just feed -> jsonToRepJson feed
+    Nothing -> undefined
 
 getItemsR :: D.FeedId -> Handler Value
 getItemsR feedId = withAuth $ do
