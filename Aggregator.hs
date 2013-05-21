@@ -28,6 +28,7 @@ withAuth handler = do
   handler
 
 getConfig = configuration `fmap` getYesod
+decode mx = mx >>= readMay . T.unpack
 
 getFeedsR :: Handler Value
 getFeedsR = withAuth $ do
@@ -41,20 +42,23 @@ getFeedR feedId = withAuth $ do
   mfeed <- liftIO $ F.getFeed config feedId
   case mfeed of
     Just feed -> jsonToRepJson feed
-    Nothing -> undefined
+    Nothing -> invalidArgs [T.pack "unknown feed ID"]
 
 getItemsR :: D.FeedId -> Handler Value
 getItemsR feedId = withAuth $ do
+  mend <- lookupGetParam "end"
+  mmax <- lookupGetParam "max"
   config <- getConfig
-  items <- liftIO $ F.getItems config feedId
+  items <- liftIO $ F.getItems config feedId (decode mend) (decode mmax)
   jsonToRepJson items
 
 setBoolValueR :: (C.Configuration -> D.ItemId -> Bool -> IO ()) -> D.ItemId -> Handler ()
 setBoolValueR setter itemId = withAuth $ do
   mvalue <- lookupPostParam "value"
-  config <- getConfig
-  case mvalue >>= readMay . T.unpack of
-    Just value -> liftIO $ setter config itemId value
+  case decode mvalue of
+    Just value -> do
+      config <- getConfig
+      liftIO $ setter config itemId value
     Nothing -> invalidArgs [T.pack "value"]
 
 

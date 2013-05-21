@@ -22,11 +22,12 @@ import qualified Data.Text as T
 import Text.Feed.Query
 import Database.Persist
 import Data.Aeson
+import Data.Maybe (maybeToList)
 import Data.Time.Clock (UTCTime)
 import Data.Time.LocalTime (zonedTimeToUTC)
 import Data.Time.RFC2822 (readRFC2822)
 import Data.Time.RFC3339 (readRFC3339)
-import Data.Time.Clock.POSIX (utcTimeToPOSIXSeconds)
+import Data.Time.Clock.POSIX (utcTimeToPOSIXSeconds, posixSecondsToUTCTime)
 import Control.Applicative ((<|>))
 import Web.PathPieces (toPathPiece)
 import Html (cleanupHtml)
@@ -88,6 +89,12 @@ instance ToJSON Item where
 orElse :: Maybe a -> a -> a
 orElse (Just x) _ = x
 orElse Nothing  x = x 
+
+millisToUtc :: Int -> UTCTime
+millisToUtc millis = posixSecondsToUTCTime $ fromRational (toEnum millis / 1000)
+
+utcToMillis :: UTCTime -> Int
+utcToMillis utc = round $ utcTimeToPOSIXSeconds utc * 1000
 
 -- parse an RSS or Atom date
 parseDate :: String -> Maybe UTCTime
@@ -160,28 +167,35 @@ setItemStarred config itemKey value = D.runDb config $ update itemKey [ D.ItemSt
 -- marks all items in a feed as read
 markAllAsRead :: Configuration -> D.FeedId -> IO ()
 markAllAsRead config feedKey = D.runDb config $ do
-  -- TODO: get list of keys only
-  items <- selectList [D.ItemParent ==. feedKey] []
-  mapM_ markAsRead (map entityKey items)
+  itemKeys <- selectKeysList [D.ItemParent ==. feedKey] []
+  mapM_ markAsRead itemKeys
     where markAsRead itemKey = update itemKey [ D.ItemRead =. True ]
   
 -- get all items in a feed
-getItems :: Configuration -> D.FeedId -> IO [Item]
-getItems config feedKey = D.runDb config $ do
-  items <- selectList [D.ItemParent ==. feedKey] [Desc D.ItemDate]
+getItems :: Configuration
+         -> D.FeedId
+         -> Maybe Int -- end date
+         -> Maybe Int -- max items returned
+         -> IO [Item]
+getItems config feedKey mend mmax = D.runDb config $ do
+  items <- selectList filters options
   return $ map dataToMessageItem items
+
+  where filters = [D.ItemParent ==. feedKey]
+                ++ [D.ItemDate <. millisToUtc end | end <- maybeToList mend]
+
+        options =  [Desc D.ItemDate]
+                ++ [LimitTo max | max <- maybeToList mmax ]
   
 
 -- converts a database item entity into a message
 dataToMessageItem ::  Entity D.Item -> Item
 dataToMessageItem (Entity k (D.Item _ _ title url content date author starred read)) = 
-  Item (toPathPiece k) (round $ utcTimeToPOSIXSeconds date) title content url author 
-       starred read
+  Item (toPathPiece k) (utcToMillis date) title content url author starred read
 
 -- converts a database feed entity and a list of message items into a message feed
 dataToMessageFeed k (D.Feed title _) = do
-  -- TODO: count instead of select + length
-  items <- selectList [D.ItemParent ==. k, D.ItemRead ==. False] []
+  items <- selectKeysList [D.ItemParent ==. k, D.ItemRead ==. False] []
   return $ Feed (toPathPiece k) title (length items)
 
 
