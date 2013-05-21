@@ -29,13 +29,6 @@ fetchAndInsert config url = do
       now <- getCurrentTime
       uncurry (insertOrUpdateData config) (feedToData url now feed)
 
---slashdot = "http://rss.slashdot.org/Slashdot/slashdot"
-slashdot = "http://localhost:8000/slashdot.rss"
-redditHaskell = "http://www.reddit.com/r/haskell/.rss"
-dartNews = "http://news.dartlang.org/feeds/posts/default"
-droneIo = "http://blog.drone.io/atom.xml"
-nyt = "http://localhost:8000/nyt.rss"
-
 fetchAll config = mapM_ (fetchAndInsert config) (feeds config)
 
 logMsg str = do

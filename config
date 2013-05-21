@@ -1,9 +1,8 @@
 Configuration {
   database = "foo",
   feeds = [
-    "http://localhost:8000/slashdot.rss",
-    "http://localhost:8000/proggit.rss",
-    "http://localhost:8000/dart.rss",
-    "http://localhost:8000/nyt.rss"
+    "http://rss.slashdot.org/Slashdot/slashdot",
+    "http://www.reddit.com/r/haskell/.rss",
+    "http://blog.drone.io/atom.xml"
   ]
 }
