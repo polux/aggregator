@@ -11,8 +11,6 @@ import Control.Concurrent
 import System.IO
 import Data.Time.Clock(getCurrentTime)
 
-import Debug.Trace
-
 -- fetches and parses a feed
 fetchFeed :: String -> IO (Maybe F.Feed)
 fetchFeed url = do
@@ -29,9 +27,9 @@ fetchAndInsert config url = do
     Nothing -> print ("failed to fetch " ++ url)
     Just feed -> do
       now <- getCurrentTime
-      uncurry (insertOrUpdateData config) (feedToData url now (traceShow feed feed))
+      uncurry (insertOrUpdateData config) (feedToData url now feed)
 
-fetchAll config = mapM_ (fetchAndInsert config) (feeds config)
+fetchAll config = mapM_ (fetchAndInsert config) (map fst $ feeds config)
 
 logMsg str = do
   now <- getCurrentTime

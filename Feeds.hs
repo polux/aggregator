@@ -195,9 +195,10 @@ dataToMessageItem (Entity k (D.Item _ _ title url content date author starred re
   Item (toPathPiece k) (utcToMillis date) title content url author starred read
 
 -- converts a database feed entity and a list of message items into a message feed
-dataToMessageFeed k (D.Feed title _) = do
-  items <- selectKeysList [D.ItemParent ==. k, D.ItemRead ==. False] []
-  return $ Feed (toPathPiece k) title (length items)
+dataToMessageFeed config feedKey (D.Feed title url) = do
+  items <- selectKeysList [D.ItemParent ==. feedKey, D.ItemRead ==. False] []
+  return $ Feed (toPathPiece feedKey) bestTitle (length items)
+    where bestTitle = (C.userTitle config url) `orElse` title
 
 
 -- get a feed by id
@@ -206,7 +207,7 @@ getFeed config feedId = D.runDb config $ do
   mfeed <- get feedId
   case mfeed of
     Just feed -> do
-      result <- dataToMessageFeed feedId feed
+      result <- dataToMessageFeed config feedId feed
       return (Just result)
     Nothing -> return Nothing
 
@@ -216,5 +217,5 @@ getAllFeeds config = D.runDb config $ do
   feeds <- catMaybes `fmap` mapM getUnique (C.feeds config)
   mapM fill feeds
   
-  where getUnique origin = getBy $ D.UniqueOrigin origin
-        fill (Entity key feed) = dataToMessageFeed key feed
+  where getUnique (origin, _) = getBy $ D.UniqueOrigin origin
+        fill (Entity key feed) = dataToMessageFeed config key feed
