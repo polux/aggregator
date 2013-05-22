@@ -124,7 +124,8 @@ feedToData origin defaultDate feed = (dfeed, ditems)
           where guid = (snd `fmap` getItemId item) `orElse` url
                 title = getItemTitle item `orElse` ""
                 url = getItemLink item `orElse` ""
-                content = (cleanupHtml `fmap` extractDescription item) `orElse` ""
+                content = (cleanupHtml `fmap` mdescription) `orElse` ""
+                  where mdescription = extractDescription item <|> getItemSummary item
                 date = (getItemDate item >>= parseDate) `orElse` defaultDate
                 author = getItemAuthor item `orElse` ""
 
