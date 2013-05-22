@@ -15,14 +15,14 @@ module Feeds (
   insertOrUpdateData,
 ) where
 
-import Configuration
+import qualified Configuration as C
 import qualified Text.Feed.Types as F
 import qualified Data as D
 import qualified Data.Text as T
 import Text.Feed.Query
 import Database.Persist
 import Data.Aeson
-import Data.Maybe (maybeToList)
+import Data.Maybe (maybeToList, catMaybes)
 import Data.Time.Clock (UTCTime)
 import Data.Time.LocalTime (zonedTimeToUTC)
 import Data.Time.RFC2822 (readRFC2822)
@@ -129,7 +129,7 @@ feedToData origin defaultDate feed = (dfeed, ditems)
                 author = getItemAuthor item `orElse` ""
 
 -- Inserts or update a data feed and associated Items in the database
-insertOrUpdateData :: Configuration -> D.Feed -> (D.FeedId -> [D.Item]) -> IO ()
+insertOrUpdateData :: C.Configuration -> D.Feed -> (D.FeedId -> [D.Item]) -> IO ()
 insertOrUpdateData config newFeed newItems = D.runDb config $ do
   feedId <- insertOrUpdateFeed 
   mapM_ insertOrUpdateItem (newItems feedId)
@@ -158,21 +158,21 @@ insertOrUpdateData config newFeed newItems = D.runDb config $ do
                                       (D.itemGuid newItem)
 
 -- set an Item's 'read' status
-setItemRead :: Configuration -> D.ItemId -> Bool -> IO ()
+setItemRead :: C.Configuration -> D.ItemId -> Bool -> IO ()
 setItemRead config itemKey value = D.runDb config $ update itemKey [ D.ItemRead =. value ] 
 
 -- set an Item's 'read' status
-setItemStarred :: Configuration -> D.ItemId -> Bool -> IO ()
+setItemStarred :: C.Configuration -> D.ItemId -> Bool -> IO ()
 setItemStarred config itemKey value = D.runDb config $ update itemKey [ D.ItemStarred =. value ] 
 -- marks all items in a feed as read
-markAllAsRead :: Configuration -> D.FeedId -> IO ()
+markAllAsRead :: C.Configuration -> D.FeedId -> IO ()
 markAllAsRead config feedKey = D.runDb config $ do
   itemKeys <- selectKeysList [D.ItemParent ==. feedKey] []
   mapM_ markAsRead itemKeys
     where markAsRead itemKey = update itemKey [ D.ItemRead =. True ]
   
 -- get all items in a feed
-getItems :: Configuration
+getItems :: C.Configuration
          -> D.FeedId
          -> Maybe Int -- end date
          -> Maybe Int -- max items returned
@@ -200,7 +200,7 @@ dataToMessageFeed k (D.Feed title _) = do
 
 
 -- get a feed by id
-getFeed :: Configuration -> D.FeedId -> IO (Maybe Feed)
+getFeed :: C.Configuration -> D.FeedId -> IO (Maybe Feed)
 getFeed config feedId = D.runDb config $ do
   mfeed <- get feedId
   case mfeed of
@@ -210,9 +210,10 @@ getFeed config feedId = D.runDb config $ do
     Nothing -> return Nothing
 
 -- get all the feeds from the database as messages
-getAllFeeds :: Configuration -> IO [Feed]
+getAllFeeds :: C.Configuration -> IO [Feed]
 getAllFeeds config = D.runDb config $ do
-  feeds <- selectList [] []
+  feeds <- catMaybes `fmap` mapM getUnique (C.feeds config)
   mapM fill feeds
   
-  where fill (Entity key feed) = dataToMessageFeed key feed
+  where getUnique origin = getBy $ D.UniqueOrigin origin
+        fill (Entity key feed) = dataToMessageFeed key feed
