@@ -69,7 +69,7 @@ postItemStarredR :: D.ItemId -> Handler ()
 postItemStarredR = setBoolValueR F.setItemStarred
 
 postFeedReadAllR :: D.FeedId -> Handler ()
-postFeedReadAllR feedId = do
+postFeedReadAllR feedId = withAuth $ do
   config <- getConfig
   liftIO $ F.markAllAsRead config feedId
 

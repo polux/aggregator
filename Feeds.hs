@@ -168,7 +168,7 @@ setItemStarred config itemKey value = D.runDb config $ update itemKey [ D.ItemSt
 -- marks all items in a feed as read
 markAllAsRead :: C.Configuration -> D.FeedId -> IO ()
 markAllAsRead config feedKey = D.runDb config $ do
-  itemKeys <- selectKeysList [D.ItemParent ==. feedKey] []
+  itemKeys <- selectKeysList [D.ItemParent ==. feedKey, D.ItemRead ==. False] []
   mapM_ markAsRead itemKeys
     where markAsRead itemKey = update itemKey [ D.ItemRead =. True ]
   
