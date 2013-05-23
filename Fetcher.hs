@@ -6,18 +6,32 @@ import Configuration
 import qualified Text.Feed.Types as F
 import qualified Text.Feed.Import as F
 import Feeds (feedToData, insertOrUpdateData)
-import Network.HTTP (simpleHTTP, getRequest, getResponseBody)
+import Network.HTTP (mkRequest, simpleHTTP, RequestMethod(GET), rspBody, Request, Response)
+import Network.Stream (Result)
 import Control.Concurrent
 import System.IO
 import Data.Time.Clock(getCurrentTime)
+import Data.ByteString.Lazy.UTF8 (toString)
+import qualified Data.ByteString.Lazy as B
+import Network.URI (parseURI)
+
+-- This is the same function as the one defined in Network.HTTP except it
+-- returns a bytestring
+getRequest
+    :: String               -- URL to fetch
+    -> Request B.ByteString -- The constructed request
+getRequest urlString =
+  case parseURI urlString of
+    Nothing -> error ("getRequest: Not a valid URL - " ++ urlString)
+    Just u  -> mkRequest GET u
 
 -- fetches and parses a feed
 fetchFeed :: String -> IO (Maybe F.Feed)
 fetchFeed url = do
-  resp <- simpleHTTP (getRequest url)
-  case resp of
-    Left _ -> return Nothing
-    _ -> F.parseFeedString `fmap` (getResponseBody resp)
+  eresp <- simpleHTTP (getRequest url) :: IO (Result (Response B.ByteString))
+  return $ case eresp of
+    Left _ -> Nothing
+    Right resp -> F.parseFeedString (toString (rspBody resp))
 
 
 fetchAndInsert :: Configuration -> String -> IO ()
