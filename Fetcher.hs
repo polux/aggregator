@@ -14,6 +14,7 @@ import Data.Time.Clock(getCurrentTime)
 import Data.ByteString.Lazy.UTF8 (toString)
 import qualified Data.ByteString.Lazy as B
 import Network.URI (parseURI)
+import Control.Exception.Base (catch, SomeException)
 
 -- This is the same function as the one defined in Network.HTTP except it
 -- returns a bytestring
@@ -28,7 +29,7 @@ getRequest urlString =
 -- fetches and parses a feed
 fetchFeed :: String -> IO (Maybe F.Feed)
 fetchFeed url = do
-  eresp <- simpleHTTP (getRequest url) :: IO (Result (Response B.ByteString))
+  eresp <- simpleHTTP (getRequest url)
   return $ case eresp of
     Left _ -> Nothing
     Right resp -> F.parseFeedString (toString (rspBody resp))
@@ -41,7 +42,9 @@ fetchAndInsert config url = do
     Nothing -> print ("failed to fetch " ++ url)
     Just feed -> do
       now <- getCurrentTime
-      uncurry (insertOrUpdateData config) (feedToData url now feed)
+      uncurry (insertOrUpdateData config) (feedToData url now feed) `catch` log
+  where log :: SomeException -> IO ()
+        log e = print ("failed to insert " ++ url ++ ": " ++ show e)
 
 fetchAll config = mapM_ (fetchAndInsert config) (map fst $ feeds config)
 
