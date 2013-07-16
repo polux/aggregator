@@ -34,8 +34,10 @@ getConfig = configuration `fmap` getYesod
 decode :: Read b => Maybe Text -> Maybe b
 decode mx = mx >>= readMay . T.unpack
 
-isDefined :: Maybe Text -> Bool
-isDefined = maybe False (const True)
+lookupGetFlag :: Text -> Handler Bool
+lookupGetFlag flagName = do
+  mparam <- lookupGetParam flagName
+  return $ maybe False (const True) mparam
 
 getFeedsR :: Handler Value
 getFeedsR = withAuth $ do
@@ -55,14 +57,22 @@ getItemsR :: D.FeedId -> Handler Value
 getItemsR feedId = withAuth $ do
   mend <- lookupGetParam "end"
   mmax <- lookupGetParam "max"
-  mlight <- lookupGetParam "descriptions-only"
+  light <- lookupGetFlag "descriptions-only"
+  unread <- lookupGetFlag "unread-only"
+  starred <- lookupGetFlag "starred-only"
   config <- getConfig
-  items <- liftIO $ F.getItems config (isDefined mlight) feedId (decode mend) (decode mmax)
+  items <- liftIO $ F.getItems config
+                               light
+                               unread
+                               starred
+                               feedId
+                               (decode mend)
+                               (decode mmax)
   jsonToRepJson items
 
-setBoolValueR :: (C.Configuration -> D.ItemId -> Bool -> IO ()) 
-              -> D.FeedId 
-              -> D.ItemId 
+setBoolValueR :: (C.Configuration -> D.ItemId -> Bool -> IO ())
+              -> D.FeedId
+              -> D.ItemId
               -> Handler ()
 setBoolValueR setter feedId itemId = withAuth $ do
   mvalue <- lookupPostParam "value"

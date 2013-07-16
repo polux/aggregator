@@ -194,17 +194,21 @@ getItem config itemId = D.runDb config $ do
 
 -- get all items in a feed
 getItems :: C.Configuration
-         -> Bool -- descriptions only?
+         -> Bool -- descriptions only
+         -> Bool -- unread only
+         -> Bool -- starred only
          -> D.FeedId
          -> Maybe Int -- end date
          -> Maybe Int -- max items returned
          -> IO [Item]
-getItems config light feedKey mend mmax = D.runDb config $ do
+getItems config light unread starred feedKey mend mmax = D.runDb config $ do
   items <- selectList filters options
   return $ map entityToMessage items
 
   where filters = [D.ItemParent ==. feedKey]
                 ++ [D.ItemDate <. millisToUtc end | end <- maybeToList mend]
+                ++ (if unread then [D.ItemRead ==. False] else [])
+                ++ (if starred then [D.ItemStarred ==. True] else [])
 
         options =  [Desc D.ItemDate]
                 ++ [LimitTo max | max <- maybeToList mmax ]
