@@ -16,8 +16,9 @@ mkYesod "HelloWorld" [parseRoutes|
 /feeds/#D.FeedId FeedR GET
 /feeds/#D.FeedId/items ItemsR GET
 /feeds/#D.FeedId/readAll FeedReadAllR POST
-/items/#D.ItemId/read ItemReadR POST
-/items/#D.ItemId/starred ItemStarredR POST
+/feeds/#D.FeedId/items/#D.ItemId ItemR GET
+/feeds/#D.FeedId/items/#D.ItemId/read ItemReadR POST
+/feeds/#D.FeedId/items/#D.ItemId/starred ItemStarredR POST
 |]
 
 instance Yesod HelloWorld
@@ -27,7 +28,10 @@ withAuth handler = do
   addHeader "Access-Control-Allow-Origin" "*"
   handler
 
+getConfig :: Handler C.Configuration
 getConfig = configuration `fmap` getYesod
+
+decode :: Read b => Maybe Text -> Maybe b
 decode mx = mx >>= readMay . T.unpack
 
 getFeedsR :: Handler Value
@@ -52,8 +56,8 @@ getItemsR feedId = withAuth $ do
   items <- liftIO $ F.getItems config feedId (decode mend) (decode mmax)
   jsonToRepJson items
 
-setBoolValueR :: (C.Configuration -> D.ItemId -> Bool -> IO ()) -> D.ItemId -> Handler ()
-setBoolValueR setter itemId = withAuth $ do
+setBoolValueR :: (C.Configuration -> D.ItemId -> Bool -> IO ()) -> D.FeedId -> D.ItemId -> Handler ()
+setBoolValueR setter feedId itemId = withAuth $ do
   mvalue <- lookupPostParam "value"
   case decode mvalue of
     Just value -> do
@@ -61,11 +65,18 @@ setBoolValueR setter itemId = withAuth $ do
       liftIO $ setter config itemId value
     Nothing -> invalidArgs [T.pack "value"]
 
+getItemR :: D.FeedId -> D.ItemId -> Handler Value
+getItemR feedId itemId = withAuth $ do
+  config <- getConfig
+  mitem <- liftIO $ F.getItem config itemId
+  case mitem of
+    Just item -> jsonToRepJson item
+    Nothing -> invalidArgs [T.pack "unknown item ID"]
 
-postItemReadR :: D.ItemId -> Handler ()
+postItemReadR :: D.FeedId -> D.ItemId -> Handler ()
 postItemReadR = setBoolValueR F.setItemRead
 
-postItemStarredR :: D.ItemId -> Handler ()
+postItemStarredR :: D.FeedId -> D.ItemId -> Handler ()
 postItemStarredR = setBoolValueR F.setItemStarred
 
 postFeedReadAllR :: D.FeedId -> Handler ()

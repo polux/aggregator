@@ -8,6 +8,7 @@ module Feeds (
   getFeed,
   getAllFeeds,
   getItems,
+  getItem,
   setItemRead,
   setItemStarred,
   markAllAsRead,
@@ -171,7 +172,15 @@ markAllAsRead config feedKey = D.runDb config $ do
   itemKeys <- selectKeysList [D.ItemParent ==. feedKey, D.ItemRead ==. False] []
   mapM_ markAsRead itemKeys
     where markAsRead itemKey = update itemKey [ D.ItemRead =. True ]
-  
+
+-- get one item
+getItem :: C.Configuration
+        -> D.ItemId
+        -> IO (Maybe Item)
+getItem config itemId = D.runDb config $ do
+  mitem <- get itemId
+  return $ fmap (dataToMessageItem itemId) mitem
+
 -- get all items in a feed
 getItems :: C.Configuration
          -> D.FeedId
@@ -180,19 +189,20 @@ getItems :: C.Configuration
          -> IO [Item]
 getItems config feedKey mend mmax = D.runDb config $ do
   items <- selectList filters options
-  return $ map dataToMessageItem items
+  return $ map entityToMessage items
 
   where filters = [D.ItemParent ==. feedKey]
                 ++ [D.ItemDate <. millisToUtc end | end <- maybeToList mend]
 
         options =  [Desc D.ItemDate]
                 ++ [LimitTo max | max <- maybeToList mmax ]
+
+        entityToMessage (Entity key item) = dataToMessageItem key item
   
 
 -- converts a database item entity into a message
-dataToMessageItem ::  Entity D.Item -> Item
-dataToMessageItem (Entity k (D.Item _ _ title url content date author starred read)) = 
-  Item (toPathPiece k) (utcToMillis date) title content url author starred read
+dataToMessageItem itemKey (D.Item _ _ title url content date author starred read) =
+  Item (toPathPiece itemKey) (utcToMillis date) title content url author starred read
 
 -- converts a database feed entity and a list of message items into a message feed
 dataToMessageFeed config feedKey (D.Feed title url) = do
