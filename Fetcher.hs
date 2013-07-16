@@ -36,14 +36,16 @@ fetchFeed url = do
 
 
 fetchAndInsert :: Configuration -> String -> IO ()
-fetchAndInsert config url = do
-  mfeed <- fetchFeed url
-  case mfeed of
-    Nothing -> print ("failed to fetch " ++ url)
-    Just feed -> do
-      now <- getCurrentTime
-      uncurry (insertOrUpdateData config) (feedToData url now feed) `catch` log
-  where log :: SomeException -> IO ()
+fetchAndInsert config url = fetchAndInsert' `catch` log
+  where fetchAndInsert' = do
+         mfeed <- fetchFeed url
+         case mfeed of
+           Nothing -> print ("failed to fetch " ++ url)
+           Just feed -> do
+             now <- getCurrentTime
+             uncurry (insertOrUpdateData config) (feedToData url now feed)
+        
+        log :: SomeException -> IO ()
         log e = print ("failed to insert " ++ url ++ ": " ++ show e)
 
 fetchAll config = mapM_ (fetchAndInsert config) (map fst $ feeds config)
