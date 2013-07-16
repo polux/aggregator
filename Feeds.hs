@@ -60,12 +60,17 @@ data Item = Item
     { itemId :: T.Text
     , itemDate :: Int
     , itemTitle :: String
-    , itemContent :: String
-    , itemUrl :: String
-    , itemAuthor :: String
     , itemStarred :: Bool
     , itemRead :: Bool
-    } 
+    , itemOptionalParts :: Maybe OptionalItemParts
+    }
+  deriving (Show)
+
+data OptionalItemParts = OptionalItemParts
+    { itemUrl :: String
+    , itemAuthor :: String
+    , itemContent :: String
+    }
   deriving (Show)
 
 instance ToJSON Feed where
@@ -76,20 +81,26 @@ instance ToJSON Feed where
            ]
 
 instance ToJSON Item where
-  toJSON (Item id date title content url author starred read) =
-    object [ "id" .= id
-           , "date" .= date
-           , "title" .= title
-           , "content" .= content
-           , "url" .= url
-           , "author" .= author
-           , "starred" .= starred
-           , "read" .= read
-           ]
+  toJSON (Item id date title starred read optionalParts) =
+    object $ [ "id" .= id
+             , "date" .= date
+             , "title" .= title
+             , "starred" .= starred
+             , "read" .= read
+             ]
+             ++
+             optionalFields optionalParts
+
+    where optionalFields Nothing = []
+          optionalFields (Just (OptionalItemParts url author content)) =
+            [ "content" .= content
+            , "url" .= url
+            , "author" .= author
+            ]
 
 orElse :: Maybe a -> a -> a
 orElse (Just x) _ = x
-orElse Nothing  x = x 
+orElse Nothing  x = x
 
 millisToUtc :: Int -> UTCTime
 millisToUtc millis = posixSecondsToUTCTime $ fromRational (toEnum millis / 1000)
@@ -113,7 +124,7 @@ extractDescription (Feed.AtomItem e) = fmap contentToStr $ Atom.entryContent e
         contentToStr (Atom.XHTMLContent s) = XML.strContent s
 
 -- converts a 'feeds' package feed into data ready to be inserted
-feedToData 
+feedToData
   :: String                         -- origin (unique)
   -> UTCTime                        -- default date
   -> F.Feed                         -- feed to convert
@@ -133,7 +144,7 @@ feedToData origin defaultDate feed = (dfeed, ditems)
 -- Inserts or update a data feed and associated Items in the database
 insertOrUpdateData :: C.Configuration -> D.Feed -> (D.FeedId -> [D.Item]) -> IO ()
 insertOrUpdateData config newFeed newItems = D.runDb config $ do
-  feedId <- insertOrUpdateFeed 
+  feedId <- insertOrUpdateFeed
   mapM_ insertOrUpdateItem (newItems feedId)
 
   where insertOrUpdateFeed = do
@@ -156,16 +167,16 @@ insertOrUpdateData config newFeed newItems = D.runDb config $ do
             Nothing -> do insert newItem
                           return ()
 
-          where unique = D.UniqueItem (D.itemParent newItem) 
+          where unique = D.UniqueItem (D.itemParent newItem)
                                       (D.itemGuid newItem)
 
 -- set an Item's 'read' status
 setItemRead :: C.Configuration -> D.ItemId -> Bool -> IO ()
-setItemRead config itemKey value = D.runDb config $ update itemKey [ D.ItemRead =. value ] 
+setItemRead config itemKey value = D.runDb config $ update itemKey [ D.ItemRead =. value ]
 
 -- set an Item's 'read' status
 setItemStarred :: C.Configuration -> D.ItemId -> Bool -> IO ()
-setItemStarred config itemKey value = D.runDb config $ update itemKey [ D.ItemStarred =. value ] 
+setItemStarred config itemKey value = D.runDb config $ update itemKey [ D.ItemStarred =. value ]
 -- marks all items in a feed as read
 markAllAsRead :: C.Configuration -> D.FeedId -> IO ()
 markAllAsRead config feedKey = D.runDb config $ do
@@ -179,15 +190,16 @@ getItem :: C.Configuration
         -> IO (Maybe Item)
 getItem config itemId = D.runDb config $ do
   mitem <- get itemId
-  return $ fmap (dataToMessageItem itemId) mitem
+  return $ fmap (dataToMessageItem False itemId) mitem
 
 -- get all items in a feed
 getItems :: C.Configuration
+         -> Bool -- descriptions only?
          -> D.FeedId
          -> Maybe Int -- end date
          -> Maybe Int -- max items returned
          -> IO [Item]
-getItems config feedKey mend mmax = D.runDb config $ do
+getItems config light feedKey mend mmax = D.runDb config $ do
   items <- selectList filters options
   return $ map entityToMessage items
 
@@ -197,12 +209,21 @@ getItems config feedKey mend mmax = D.runDb config $ do
         options =  [Desc D.ItemDate]
                 ++ [LimitTo max | max <- maybeToList mmax ]
 
-        entityToMessage (Entity key item) = dataToMessageItem key item
-  
+        entityToMessage (Entity key item) = dataToMessageItem light key item
+
 
 -- converts a database item entity into a message
-dataToMessageItem itemKey (D.Item _ _ title url content date author starred read) =
-  Item (toPathPiece itemKey) (utcToMillis date) title content url author starred read
+dataToMessageItem :: Bool -- exclude optional parts 
+                  -> D.ItemId 
+                  -> D.Item 
+                  -> Item
+dataToMessageItem light itemKey (D.Item _ _ title url content date author starred read) =
+  Item (toPathPiece itemKey)
+       (utcToMillis date)
+       title
+       starred
+       read
+       (if light then Nothing else Just (OptionalItemParts url author content))
 
 -- converts a database feed entity and a list of message items into a message feed
 dataToMessageFeed config feedKey (D.Feed title url) = do
@@ -226,6 +247,6 @@ getAllFeeds :: C.Configuration -> IO [Feed]
 getAllFeeds config = D.runDb config $ do
   feeds <- catMaybes `fmap` mapM getUnique (C.feeds config)
   mapM fill feeds
-  
+
   where getUnique (origin, _) = getBy $ D.UniqueOrigin origin
         fill (Entity key feed) = dataToMessageFeed config key feed
