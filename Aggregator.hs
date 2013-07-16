@@ -56,7 +56,10 @@ getItemsR feedId = withAuth $ do
   items <- liftIO $ F.getItems config feedId (decode mend) (decode mmax)
   jsonToRepJson items
 
-setBoolValueR :: (C.Configuration -> D.ItemId -> Bool -> IO ()) -> D.FeedId -> D.ItemId -> Handler ()
+setBoolValueR :: (C.Configuration -> D.ItemId -> Bool -> IO ()) 
+              -> D.FeedId 
+              -> D.ItemId 
+              -> Handler ()
 setBoolValueR setter feedId itemId = withAuth $ do
   mvalue <- lookupPostParam "value"
   case decode mvalue of
