@@ -19,6 +19,7 @@ mkYesod "HelloWorld" [parseRoutes|
 /feeds/#D.FeedId/items/#D.ItemId ItemR GET
 /feeds/#D.FeedId/items/#D.ItemId/read ItemReadR POST
 /feeds/#D.FeedId/items/#D.ItemId/starred ItemStarredR POST
+/search SearchR GET
 |]
 
 instance Yesod HelloWorld
@@ -61,13 +62,22 @@ getItemsR feedId = withAuth $ do
   unread <- lookupGetFlag "unread-only"
   starred <- lookupGetFlag "starred-only"
   config <- getConfig
-  items <- liftIO $ F.getItems config
-                               light
-                               unread
-                               starred
-                               feedId
-                               (decode mend)
-                               (decode mmax)
+  items <- liftIO $ F.getItems config light unread starred
+                               (Left feedId) (decode mend) (decode mmax)
+  jsonToRepJson items
+
+getSearchR :: Handler Value
+getSearchR = withAuth $ do
+  mq <- fmap T.unpack `fmap` lookupGetParam "q"
+  mend <- lookupGetParam "end"
+  mmax <- lookupGetParam "max"
+  light <- lookupGetFlag "descriptions-only"
+  unread <- lookupGetFlag "unread-only"
+  starred <- lookupGetFlag "starred-only"
+  config <- getConfig
+  let q = maybe "" id mq
+  items <- liftIO $ F.getItems config light unread starred
+                               (Right q) (decode mend) (decode mmax)
   jsonToRepJson items
 
 setBoolValueR :: (C.Configuration -> D.ItemId -> Bool -> IO ())

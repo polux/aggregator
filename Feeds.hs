@@ -58,6 +58,7 @@ data Feed = Feed
 
 data Item = Item
     { itemId :: T.Text
+    , parentId :: T.Text
     , itemDate :: Int
     , itemTitle :: String
     , itemStarred :: Bool
@@ -81,8 +82,9 @@ instance ToJSON Feed where
            ]
 
 instance ToJSON Item where
-  toJSON (Item id date title starred read optionalParts) =
+  toJSON (Item id parentId date title starred read optionalParts) =
     object $ [ "id" .= id
+             , "feedId" .= parentId
              , "date" .= date
              , "title" .= title
              , "starred" .= starred
@@ -99,8 +101,7 @@ instance ToJSON Item where
             ]
 
 orElse :: Maybe a -> a -> a
-orElse (Just x) _ = x
-orElse Nothing  x = x
+orElse m x = maybe x id m
 
 millisToUtc :: Int -> UTCTime
 millisToUtc millis = posixSecondsToUTCTime $ fromRational (toEnum millis / 1000)
@@ -197,15 +198,17 @@ getItems :: C.Configuration
          -> Bool -- descriptions only
          -> Bool -- unread only
          -> Bool -- starred only
-         -> D.FeedId
+         -> Either D.FeedId String -- feed ID or query
          -> Maybe Int -- end date
          -> Maybe Int -- max items returned
          -> IO [Item]
-getItems config light unread starred feedKey mend mmax = D.runDb config $ do
+getItems config light unread starred feedIdOrQuery mend mmax = D.runDb config $ do
   items <- selectList filters options
   return $ map entityToMessage items
 
-  where filters = [D.ItemParent ==. feedKey]
+  where filters = either (\feedKey -> [D.ItemParent ==. feedKey])
+                         (\query -> contains D.ItemTitle (words query))
+                         feedIdOrQuery
                 ++ [D.ItemDate <. millisToUtc end | end <- maybeToList mend]
                 ++ (if unread then [D.ItemRead ==. False] else [])
                 ++ (if starred then [D.ItemStarred ==. True] else [])
@@ -215,14 +218,21 @@ getItems config light unread starred feedKey mend mmax = D.runDb config $ do
 
         entityToMessage (Entity key item) = dataToMessageItem light key item
 
+        contains field values = [like field value | value <- values]
+
+        like field value = Filter field
+                                  (Left $ "%" ++ value ++ "%")
+                                  (BackendSpecificFilter "like")
+
 
 -- converts a database item entity into a message
-dataToMessageItem :: Bool -- exclude optional parts 
-                  -> D.ItemId 
-                  -> D.Item 
+dataToMessageItem :: Bool -- exclude optional parts
+                  -> D.ItemId
+                  -> D.Item
                   -> Item
-dataToMessageItem light itemKey (D.Item _ _ title url content date author starred read) =
+dataToMessageItem light itemKey (D.Item parentId _ title url content date author starred read) =
   Item (toPathPiece itemKey)
+       (toPathPiece parentId)
        (utcToMillis date)
        title
        starred
