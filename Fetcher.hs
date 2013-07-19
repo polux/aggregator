@@ -5,7 +5,7 @@ module Fetcher (
 import Configuration
 import qualified Text.Feed.Types as F
 import qualified Text.Feed.Import as F
-import Feeds (feedToData, insertOrUpdateData)
+import Feeds (feedToData, insertOrUpdateData, deleteFeedsNotInConfig)
 import Network.HTTP (mkRequest, simpleHTTP, RequestMethod(GET), rspBody, Request, Response)
 import Network.Stream (Result)
 import Control.Concurrent
@@ -62,4 +62,6 @@ loop config = do
   threadDelay (10 * 60 * 1000 * 1000)
   loop config
 
-startFetcher config = forkIO (loop config)
+startFetcher config = do
+  deleteFeedsNotInConfig config
+  forkIO (loop config)

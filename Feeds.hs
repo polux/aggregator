@@ -7,6 +7,8 @@ module Feeds (
 
   getFeed,
   getAllFeeds,
+  deleteFeedsNotInConfig,
+
   getItems,
   getItem,
   setItemRead,
@@ -264,3 +266,10 @@ getAllFeeds config = D.runDb config $ do
 
   where getUnique (origin, _) = getBy $ D.UniqueOrigin origin
         fill (Entity key feed) = dataToMessageFeed config key feed
+
+-- delete all the feeds not present in the configuration
+deleteFeedsNotInConfig :: C.Configuration -> IO ()
+deleteFeedsNotInConfig config = D.runDb config $ do
+  deleteWhere [D.FeedOrigin /<-. map fst (C.feeds config)]
+  feeds <- selectList [] []
+  deleteWhere [D.ItemParent /<-. map entityKey feeds]

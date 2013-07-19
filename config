@@ -3,7 +3,6 @@ Configuration {
   feeds = [
     ("http://rss.slashdot.org/Slashdot/slashdot", Nothing),
     ("http://www.reddit.com/r/haskell/.rss", Nothing),
-    ("http://blog.drone.io/atom.xml", Nothing),
     ("http://news.dartlang.org/feeds/posts/default?alt=rss", Nothing),
     ("http://stackoverflow.com/feeds/tag/dart", Just "Dart on Stack Overflow")
   ]
