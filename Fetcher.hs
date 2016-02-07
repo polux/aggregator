@@ -39,7 +39,6 @@ fetchAndInsert :: Configuration -> String -> IO ()
 fetchAndInsert config url = fetchAndInsert' `catch` log
   where fetchAndInsert' = do
          mfeed <- fetchFeed url
-         print mfeed
          case mfeed of
            Nothing -> print ("failed to fetch " ++ url)
            Just feed -> do
