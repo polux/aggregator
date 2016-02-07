@@ -1,5 +1,6 @@
 {-# LANGUAGE QuasiQuotes, TemplateHaskell, TypeFamilies, OverloadedStrings,
-             GADTs, FlexibleContexts, EmptyDataDecls #-}
+             GADTs, FlexibleContexts, EmptyDataDecls, MultiParamTypeClasses,
+             GeneralizedNewtypeDeriving #-}
 
 module Data where
 

@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, FlexibleContexts #-}
 
 module Feeds (
   Feed(..),
@@ -28,8 +28,8 @@ import Data.Aeson
 import Data.Maybe (maybeToList, catMaybes)
 import Data.Time.Clock (UTCTime)
 import Data.Time.LocalTime (zonedTimeToUTC)
-import Data.Time.RFC2822 (readRFC2822)
-import Data.Time.RFC3339 (readRFC3339)
+import Data.Time.RFC2822 (parseTimeRFC2822)
+import Data.Time.RFC3339 (parseTimeRFC3339)
 import Data.Time.Clock.POSIX (utcTimeToPOSIXSeconds, posixSecondsToUTCTime)
 import Control.Applicative ((<|>))
 import Web.PathPieces (toPathPiece)
@@ -113,7 +113,7 @@ utcToMillis utc = round $ utcTimeToPOSIXSeconds utc * 1000
 
 -- parse an RSS or Atom date
 parseDate :: String -> Maybe UTCTime
-parseDate date = fmap zonedTimeToUTC (readRFC2822 date <|> readRFC3339 date)
+parseDate date = fmap zonedTimeToUTC (parseTimeRFC2822 date <|> parseTimeRFC3339 date)
 
 -- Extracts the description of a feed item. Replace the feed package's broken
 -- getItemDescription function.

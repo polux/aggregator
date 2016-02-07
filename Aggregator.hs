@@ -1,5 +1,5 @@
 {-# LANGUAGE TypeFamilies, QuasiQuotes, MultiParamTypeClasses,
-             TemplateHaskell, OverloadedStrings #-}
+             TemplateHaskell, OverloadedStrings, ViewPatterns #-}
 import Yesod
 import qualified Data as D
 import qualified Feeds as F
@@ -44,14 +44,14 @@ getFeedsR :: Handler Value
 getFeedsR = withAuth $ do
   config <- getConfig
   feeds <- liftIO $ F.getAllFeeds config
-  jsonToRepJson feeds
+  returnJson feeds
 
 getFeedR :: D.FeedId -> Handler Value
 getFeedR feedId = withAuth $ do
   config <- getConfig
   mfeed <- liftIO $ F.getFeed config feedId
   case mfeed of
-    Just feed -> jsonToRepJson feed
+    Just feed -> returnJson feed
     Nothing -> invalidArgs [T.pack "unknown feed ID"]
 
 getItemsR :: D.FeedId -> Handler Value
@@ -64,7 +64,7 @@ getItemsR feedId = withAuth $ do
   config <- getConfig
   items <- liftIO $ F.getItems config light unread starred
                                (Left feedId) (decode mend) (decode mmax)
-  jsonToRepJson items
+  returnJson items
 
 getSearchR :: Handler Value
 getSearchR = withAuth $ do
@@ -78,7 +78,7 @@ getSearchR = withAuth $ do
   let q = maybe "" id mq
   items <- liftIO $ F.getItems config light unread starred
                                (Right q) (decode mend) (decode mmax)
-  jsonToRepJson items
+  returnJson items
 
 setBoolValueR :: (C.Configuration -> D.ItemId -> Bool -> IO ())
               -> D.FeedId
@@ -97,7 +97,7 @@ getItemR feedId itemId = withAuth $ do
   config <- getConfig
   mitem <- liftIO $ F.getItem config itemId
   case mitem of
-    Just item -> jsonToRepJson item
+    Just item -> returnJson item
     Nothing -> invalidArgs [T.pack "unknown item ID"]
 
 postItemReadR :: D.FeedId -> D.ItemId -> Handler ()
