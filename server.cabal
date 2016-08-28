@@ -23,7 +23,6 @@ executable server
                       , transformers
                       , resourcet
                       , feed
-                      , HTTP
                       , aeson
                       , time
                       , timerep
@@ -36,4 +35,6 @@ executable server
                       , network
                       , bytestring
                       , network-uri
+                      , http-conduit
+                      , http-types
   

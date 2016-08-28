@@ -2,7 +2,7 @@ Configuration {
   database = "foo",
   feeds = [
     ("http://rss.slashdot.org/Slashdot/slashdot", Nothing),
-    ("http://www.reddit.com/r/haskell/.rss", Nothing),
+    ("https://www.reddit.com/r/haskell/.rss", Nothing),
     ("http://www.reddit.com/r/haskelltil/.rss", Nothing),
     ("http://hgamesdev.blogspot.com/feeds/posts/default?alt=rss", Just "Blog Smelc"),
     ("http://www.haskellcast.com/feed.xml", Nothing),
