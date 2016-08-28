@@ -180,6 +180,7 @@ setItemRead config itemKey value = D.runDb config $ update itemKey [ D.ItemRead 
 -- set an Item's 'read' status
 setItemStarred :: C.Configuration -> D.ItemId -> Bool -> IO ()
 setItemStarred config itemKey value = D.runDb config $ update itemKey [ D.ItemStarred =. value ]
+
 -- marks all items in a feed as read
 markAllAsRead :: C.Configuration -> D.FeedId -> IO ()
 markAllAsRead config feedKey = D.runDb config $ do

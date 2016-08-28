@@ -44,7 +44,7 @@ fetchAndInsert config url = fetchAndInsert' `catch` log
            Just feed -> do
              now <- getCurrentTime
              uncurry (insertOrUpdateData config) (feedToData url now feed)
-        
+
         log :: SomeException -> IO ()
         log e = print ("failed to insert " ++ url ++ ": " ++ show e)
 

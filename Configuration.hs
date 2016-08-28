@@ -7,10 +7,10 @@ module Configuration (
 import Control.Monad (join)
 import Safe (readMay)
 
-data Configuration = Configuration 
+data Configuration = Configuration
   { database :: String
   , feeds :: [(String, Maybe String)] -- list of URL, optionally user-defined title pairs
-  } 
+  }
   deriving (Show, Read)
 
 parseConfiguration :: String -> Maybe Configuration
