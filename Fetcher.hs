@@ -1,3 +1,5 @@
+{-# LANGUAGE ScopedTypeVariables #-}
+
 module Fetcher (
   startFetcher
 ) where
@@ -5,52 +7,39 @@ module Fetcher (
 import Configuration
 import qualified Text.Feed.Types as F
 import qualified Text.Feed.Import as F
-import Feeds (feedToData, insertOrUpdateData, deleteFeedsNotInConfig)
-import Network.HTTP.Simple (parseRequest, httpLBS, Request, getResponseBody, getResponseStatus)
-import Network.HTTP.Types.Status (statusIsSuccessful)
+import qualified Data as D
+import Feeds (feedToData, insertOrUpdateData, getAllFeedUrls)
+import Network.HTTP.Conduit (simpleHttp)
 import Control.Concurrent
 import System.IO
 import Data.Time.Clock(getCurrentTime)
 import Data.ByteString.Lazy.UTF8 (toString)
 import qualified Data.ByteString.Lazy as B
 import Network.URI (parseURI)
-import Control.Exception.Base (catch, SomeException)
-
-getRequest
-    :: String  -- URL to fetch
-    -> Request -- The constructed request
-getRequest urlString =
-  case parseRequest urlString of
-    Nothing -> error ("getRequest: Not a valid URL - " ++ urlString)
-    Just u -> u
-
--- fetches and parses a feed
-fetchFeed :: String -> IO (Maybe F.Feed)
-fetchFeed url = do
-  resp <- httpLBS (getRequest url)
-  return $ if statusIsSuccessful (getResponseStatus resp)
-    then F.parseFeedString (toString (getResponseBody resp))
-    else Nothing
-
-fetchAndInsert :: Configuration -> String -> IO ()
-fetchAndInsert config url = fetchAndInsert' `catch` log
-  where fetchAndInsert' = do
-         mfeed <- fetchFeed url
-         case mfeed of
-           Nothing -> print ("failed to fetch " ++ url)
-           Just feed -> do
-             now <- getCurrentTime
-             uncurry (insertOrUpdateData config) (feedToData url now feed)
-
-        log :: SomeException -> IO ()
-        log e = print ("failed to insert " ++ url ++ ": " ++ show e)
-
-fetchAll config = mapM_ (fetchAndInsert config) (map fst $ feeds config)
+import Control.Monad.Except
+import UnexceptionalIO (syncIO)
 
 logMsg str = do
   now <- getCurrentTime
   putStrLn ("[" ++ show now ++ "] " ++ str)
   hFlush stdout
+
+fetchAndInsert :: Configuration -> D.FeedId -> String -> IO ()
+fetchAndInsert config feedId url = do
+   logMsg ("fetching " ++ url)
+   ebody <- syncIO (simpleHttp url)
+   case ebody of
+     Left e -> logMsg ("failed to fetch " ++ url ++ ": " ++ show e)
+     Right body ->
+       case F.parseFeedString (toString body) of
+         Nothing -> logMsg ("failed to parse " ++ url)
+         Just feed -> do
+           now <- getCurrentTime
+           insertOrUpdateData config (feedToData url now feedId feed)
+
+fetchAll config = do
+  urls <- getAllFeedUrls config
+  mapM_ (uncurry (fetchAndInsert config)) urls
 
 loop config = do
   logMsg "updating feeds"
@@ -59,6 +48,4 @@ loop config = do
   threadDelay (10 * 60 * 1000 * 1000)
   loop config
 
-startFetcher config = do
-  deleteFeedsNotInConfig config
-  forkIO (loop config)
+startFetcher config = forkIO (loop config)

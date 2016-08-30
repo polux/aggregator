@@ -7,7 +7,7 @@ module Feeds (
 
   getFeed,
   getAllFeeds,
-  deleteFeedsNotInConfig,
+  getAllFeedUrls,
 
   getItems,
   getItem,
@@ -130,12 +130,11 @@ extractDescription (Feed.AtomItem e) = fmap contentToStr $ Atom.entryContent e
 feedToData
   :: String                         -- origin (unique)
   -> UTCTime                        -- default date
+  -> D.FeedId                       -- ID of the feed to convert
   -> F.Feed                         -- feed to convert
-  -> (D.Feed, D.FeedId -> [D.Item])
-feedToData origin defaultDate feed = (dfeed, ditems)
-  where dfeed = D.Feed (getFeedTitle feed) origin
-        ditems feedId = map (ditem feedId) (getFeedItems feed)
-        ditem feedId item = D.Item feedId guid title url content date author False False
+  -> [D.Item]
+feedToData origin defaultDate feedId feed = map (ditem feedId) (getFeedItems feed)
+  where ditem feedId item = D.Item feedId guid title url content date author False False
           where guid = (snd `fmap` getItemId item) `orElse` url
                 title = getItemTitle item `orElse` ""
                 url = getItemLink item `orElse` ""
@@ -145,20 +144,11 @@ feedToData origin defaultDate feed = (dfeed, ditems)
                 author = getItemAuthor item `orElse` ""
 
 -- Inserts or update a data feed and associated Items in the database
-insertOrUpdateData :: C.Configuration -> D.Feed -> (D.FeedId -> [D.Item]) -> IO ()
-insertOrUpdateData config newFeed newItems = D.runDb config $ do
-  feedId <- insertOrUpdateFeed
-  mapM_ insertOrUpdateItem (newItems feedId)
+insertOrUpdateData :: C.Configuration -> [D.Item] -> IO ()
+insertOrUpdateData config newItems = D.runDb config $ do
+  mapM_ insertOrUpdateItem newItems
 
-  where insertOrUpdateFeed = do
-          maybeFeed <- getBy unique
-          case maybeFeed of
-            Just feed -> return (entityKey feed)
-            Nothing -> insert newFeed
-
-          where unique = D.UniqueOrigin (D.feedOrigin newFeed)
-
-        insertOrUpdateItem newItem = do
+  where insertOrUpdateItem newItem = do
           maybeItem <- getBy unique
           case maybeItem of
             -- we leave parent, guid, starred and read unchanged on purpose
@@ -245,9 +235,7 @@ dataToMessageItem light itemKey (D.Item parentId _ title url content date author
 -- converts a database feed entity and a list of message items into a message feed
 dataToMessageFeed config feedKey (D.Feed title url) = do
   items <- selectKeysList [D.ItemParent ==. feedKey, D.ItemRead ==. False] []
-  return $ Feed (toPathPiece feedKey) bestTitle (length items)
-    where bestTitle = (C.userTitle config url) `orElse` title
-
+  return $ Feed (toPathPiece feedKey) title (length items)
 
 -- get a feed by id
 getFeed :: C.Configuration -> D.FeedId -> IO (Maybe Feed)
@@ -262,15 +250,15 @@ getFeed config feedId = D.runDb config $ do
 -- get all the feeds from the database as messages
 getAllFeeds :: C.Configuration -> IO [Feed]
 getAllFeeds config = D.runDb config $ do
-  feeds <- catMaybes `fmap` mapM getUnique (C.feeds config)
+  feeds <- selectList [] []
   mapM fill feeds
 
-  where getUnique (origin, _) = getBy $ D.UniqueOrigin origin
-        fill (Entity key feed) = dataToMessageFeed config key feed
+  where fill (Entity key feed) = dataToMessageFeed config key feed
 
--- delete all the feeds not present in the configuration
-deleteFeedsNotInConfig :: C.Configuration -> IO ()
-deleteFeedsNotInConfig config = D.runDb config $ do
-  deleteWhere [D.FeedOrigin /<-. map fst (C.feeds config)]
+-- get all feed URLs along with their feed IDs
+getAllFeedUrls :: C.Configuration -> IO [(D.FeedId, String)]
+getAllFeedUrls config = D.runDb config $ do
   feeds <- selectList [] []
-  deleteWhere [D.ItemParent /<-. map entityKey feeds]
+  mapM selectUrl feeds
+
+  where selectUrl (Entity key (D.Feed _ url)) = return (key, url)

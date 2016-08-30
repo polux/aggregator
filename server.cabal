@@ -37,4 +37,6 @@ executable server
                       , network-uri
                       , http-conduit
                       , http-types
+                      , mtl
+                      , unexceptionalio
   

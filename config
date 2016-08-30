@@ -1,32 +1,3 @@
 Configuration {
-  database = "foo",
-  feeds = [
-    ("http://rss.slashdot.org/Slashdot/slashdot", Nothing),
-    ("https://www.reddit.com/r/haskell/.rss", Nothing),
-    ("http://www.reddit.com/r/haskelltil/.rss", Nothing),
-    ("http://hgamesdev.blogspot.com/feeds/posts/default?alt=rss", Just "Blog Smelc"),
-    ("http://www.haskellcast.com/feed.xml", Nothing),
-    ("http://typetheorypodcast.com/feed/podcast", Nothing),
-    ("http://ocaml.org/feed.xml", Nothing),
-    ("http://news.dartlang.org/feeds/posts/default?alt=rss", Nothing),
-    ("http://www.reddit.com/r/scala/.rss", Nothing),
-    ("http://lambda-the-ultimate.org/rss.xml", Just "LtU"),
-    ("http://www.pl-enthusiast.net/feed/", Just "PL Enthusiast"),
-    ("http://okmij.org/ftp/rss.xml", Just "Oleg"),
-    ("http://www.scilogs.fr/complexites/feed/", Just "JP Delahaye"),
-    ("http://blog.sigfpe.com/feeds/posts/default", Just "Dan Piponi"),
-    ("http://wadler.blogspot.ch/atom.xml", Just "Wadler"),
-    ("http://www.reddit.com/r/scheme/.rss", Just "Reddit Scheme"),
-    ("http://www.reddit.com/r/types/.rss", Just "Reddit Types"),
-    ("http://www.reddit.com/r/dependent_types/.rss", Nothing),
-    ("http://www.reddit.com/r/programming/top/.rss", Just "Proggit Top"),
-    ("http://feeds.feedburner.com/newsyc50?format=xml", Just "HN 50+ points"),
-    ("http://blog.drone.io/atom.xml", Nothing),
-    ("http://lethalman.blogspot.com/feeds/posts/default/-/nixpills", Just "Nix Pills"),
-    ("http://www.lemonde.fr/rss/une.xml", Just "Le Monde.fr"),
-    ("http://rss.feedsportal.com/c/32535/f/481784/index.rss", Just "Le Temps.ch"),
-    ("http://xkcd.com/rss.xml", Just "xkcd"),
-    ("http://www.smbc-comics.com/rss.php", Just "SMBC"),
-    ("http://www.factorio.com/blog/rss", Nothing)
-  ]
+  database = "foo"
 }
