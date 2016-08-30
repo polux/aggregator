@@ -1,3 +1,4 @@
-Configuration {
-  database = "foo"
-}
+Configuration
+  { database = "foo"
+  , refreshDelayMicros = 600000000
+  }

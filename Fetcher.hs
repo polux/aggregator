@@ -45,7 +45,7 @@ loop config = do
   logMsg "updating feeds"
   fetchAll config
   logMsg "done, sleeping"
-  threadDelay (10 * 60 * 1000 * 1000)
+  threadDelay (refreshDelayMicros config)
   loop config
 
 startFetcher config = forkIO (loop config)
