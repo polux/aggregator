@@ -1,6 +1,8 @@
 {-# LANGUAGE TypeFamilies, QuasiQuotes, MultiParamTypeClasses,
              TemplateHaskell, OverloadedStrings, ViewPatterns #-}
 
+module Aggregator where
+
 import Yesod
 import qualified Data as D
 import qualified Feeds as F
