@@ -1,6 +1,6 @@
 {-# LANGUAGE QuasiQuotes, TemplateHaskell, TypeFamilies, OverloadedStrings,
              GADTs, FlexibleContexts, EmptyDataDecls, MultiParamTypeClasses,
-             GeneralizedNewtypeDeriving #-}
+             GeneralizedNewtypeDeriving, FlexibleInstances #-}
 
 module Data where
 
@@ -15,7 +15,7 @@ import Control.Monad.Trans.Resource (runResourceT)
 import qualified Data.Text as T
 
 share [mkPersist sqlSettings, mkMigrate "migrateAll"] [persistUpperCase|
-Item
+Item json
     parent FeedId
     guid String
     UniqueItem parent guid
@@ -27,7 +27,7 @@ Item
     starred Bool
     read Bool
     deriving Show
-Feed
+Feed json
     title String
     origin String
     UniqueOrigin origin

@@ -6,6 +6,9 @@ module Feeds (
   feedToData,
 
   getFeed,
+  createFeed,
+  deleteFeed,
+  updateFeed,
   getAllFeeds,
   getAllFeedUrls,
 
@@ -53,6 +56,7 @@ import qualified Text.Feed.Types as Feed
 data Feed = Feed
     { feedId :: T.Text
     , feedTitle :: String
+    , feedOrigin :: String
     , feedUnreadCount :: Int
     }
   deriving (Show)
@@ -77,9 +81,10 @@ data OptionalItemParts = OptionalItemParts
   deriving (Show)
 
 instance ToJSON Feed where
-  toJSON (Feed id title unreadCount) =
+  toJSON (Feed id title origin unreadCount) =
     object [ "id" .= id
            , "title" .= title
+           , "origin" .= origin
            , "unreadCount" .= unreadCount
            ]
 
@@ -233,9 +238,9 @@ dataToMessageItem light itemKey (D.Item parentId _ title url content date author
        (if light then Nothing else Just (OptionalItemParts url author content))
 
 -- converts a database feed entity and a list of message items into a message feed
-dataToMessageFeed config feedKey (D.Feed title url) = do
+dataToMessageFeed feedKey (D.Feed title url) = do
   items <- selectKeysList [D.ItemParent ==. feedKey, D.ItemRead ==. False] []
-  return $ Feed (toPathPiece feedKey) title (length items)
+  return $ Feed (toPathPiece feedKey) title url (length items)
 
 -- get a feed by id
 getFeed :: C.Configuration -> D.FeedId -> IO (Maybe Feed)
@@ -243,9 +248,36 @@ getFeed config feedId = D.runDb config $ do
   mfeed <- get feedId
   case mfeed of
     Just feed -> do
-      result <- dataToMessageFeed config feedId feed
+      result <- dataToMessageFeed feedId feed
       return (Just result)
     Nothing -> return Nothing
+
+-- create a new feed
+createFeed
+  :: C.Configuration
+  -> D.Feed
+  -> IO Feed
+createFeed config feed = D.runDb config $ do
+  feedId <- insert feed
+  dataToMessageFeed feedId feed
+
+-- delete a feed given its ID
+deleteFeed
+  :: C.Configuration
+  -> D.FeedId
+  -> IO ()
+deleteFeed config feedId = D.runDb config $ do
+  delete feedId
+
+-- replaces a feed's definition
+updateFeed
+  :: C.Configuration
+  -> D.FeedId
+  -> D.Feed
+  -> IO Feed
+updateFeed config feedId feed = D.runDb config $ do
+  replace feedId feed
+  dataToMessageFeed feedId feed
 
 -- get all the feeds from the database as messages
 getAllFeeds :: C.Configuration -> IO [Feed]
@@ -253,7 +285,7 @@ getAllFeeds config = D.runDb config $ do
   feeds <- selectList [] []
   mapM fill feeds
 
-  where fill (Entity key feed) = dataToMessageFeed config key feed
+  where fill (Entity key feed) = dataToMessageFeed key feed
 
 -- get all feed URLs along with their feed IDs
 getAllFeedUrls :: C.Configuration -> IO [(D.FeedId, String)]

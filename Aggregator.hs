@@ -1,7 +1,7 @@
 {-# LANGUAGE TypeFamilies, QuasiQuotes, MultiParamTypeClasses,
              TemplateHaskell, OverloadedStrings, ViewPatterns #-}
 
-module Aggregator where
+module Main where
 
 import Yesod
 import qualified Data as D
@@ -11,12 +11,13 @@ import Fetcher
 import Safe (readMay)
 import Data.Text as T
 import System.Environment (getArgs)
+import Network.HTTP.Types (status200)
 
 data HelloWorld = HelloWorld { configuration :: C.Configuration }
 
 mkYesod "HelloWorld" [parseRoutes|
-/feeds FeedsR GET
-/feeds/#D.FeedId FeedR GET
+/feeds FeedsR GET POST
+/feeds/#D.FeedId FeedR GET PUT DELETE
 /feeds/#D.FeedId/items ItemsR GET
 /feeds/#D.FeedId/readAll FeedReadAllR POST
 /feeds/#D.FeedId/items/#D.ItemId ItemR GET
@@ -49,6 +50,13 @@ getFeedsR = withAuth $ do
   feeds <- liftIO $ F.getAllFeeds config
   returnJson feeds
 
+postFeedsR :: Handler Value
+postFeedsR = withAuth $ do
+  inputFeed <- requireJsonBody
+  config <- getConfig
+  feed <- liftIO $ F.createFeed config inputFeed
+  returnJson feed
+
 getFeedR :: D.FeedId -> Handler Value
 getFeedR feedId = withAuth $ do
   config <- getConfig
@@ -56,6 +64,19 @@ getFeedR feedId = withAuth $ do
   case mfeed of
     Just feed -> returnJson feed
     Nothing -> invalidArgs [T.pack "unknown feed ID"]
+
+putFeedR :: D.FeedId -> Handler Value
+putFeedR feedId = withAuth $ do
+  config <- getConfig
+  feedInput <- requireJsonBody
+  feed <- liftIO $ F.updateFeed config feedId feedInput
+  returnJson feed
+
+deleteFeedR :: D.FeedId -> Handler Value
+deleteFeedR feedId = withAuth $ do
+  config <- getConfig
+  liftIO $ F.deleteFeed config feedId
+  sendResponseStatus status200 ()
 
 getItemsR :: D.FeedId -> Handler Value
 getItemsR feedId = withAuth $ do
