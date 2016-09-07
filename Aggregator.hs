@@ -11,7 +11,6 @@ import Fetcher
 import Safe (readMay)
 import Data.Text as T
 import System.Environment (getArgs)
-import Network.HTTP.Types (status200)
 
 data HelloWorld = HelloWorld { configuration :: C.Configuration }
 
@@ -72,11 +71,10 @@ putFeedR feedId = withAuth $ do
   feed <- liftIO $ F.updateFeed config feedId feedInput
   returnJson feed
 
-deleteFeedR :: D.FeedId -> Handler Value
+deleteFeedR :: D.FeedId -> Handler ()
 deleteFeedR feedId = withAuth $ do
   config <- getConfig
   liftIO $ F.deleteFeed config feedId
-  sendResponseStatus status200 ()
 
 getItemsR :: D.FeedId -> Handler Value
 getItemsR feedId = withAuth $ do

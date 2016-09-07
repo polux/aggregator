@@ -268,6 +268,7 @@ deleteFeed
   -> IO ()
 deleteFeed config feedId = D.runDb config $ do
   delete feedId
+  deleteWhere [D.ItemParent ==. feedId]
 
 -- replaces a feed's definition
 updateFeed
