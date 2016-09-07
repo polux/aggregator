@@ -11,6 +11,8 @@ import Fetcher
 import Safe (readMay)
 import Data.Text as T
 import System.Environment (getArgs)
+import Network.Wai.Handler.Warp (run)
+import qualified Network.Wai.Middleware.Cors as Cors
 
 data HelloWorld = HelloWorld { configuration :: C.Configuration }
 
@@ -27,11 +29,6 @@ mkYesod "HelloWorld" [parseRoutes|
 
 instance Yesod HelloWorld
 
-withAuth :: Handler a -> Handler a
-withAuth handler = do
-  addHeader "Access-Control-Allow-Origin" "*"
-  handler
-
 getConfig :: Handler C.Configuration
 getConfig = configuration `fmap` getYesod
 
@@ -44,20 +41,20 @@ lookupGetFlag flagName = do
   return $ maybe False (const True) mparam
 
 getFeedsR :: Handler Value
-getFeedsR = withAuth $ do
+getFeedsR = do
   config <- getConfig
   feeds <- liftIO $ F.getAllFeeds config
   returnJson feeds
 
 postFeedsR :: Handler Value
-postFeedsR = withAuth $ do
+postFeedsR = do
   inputFeed <- requireJsonBody
   config <- getConfig
   feed <- liftIO $ F.createFeed config inputFeed
   returnJson feed
 
 getFeedR :: D.FeedId -> Handler Value
-getFeedR feedId = withAuth $ do
+getFeedR feedId = do
   config <- getConfig
   mfeed <- liftIO $ F.getFeed config feedId
   case mfeed of
@@ -65,19 +62,19 @@ getFeedR feedId = withAuth $ do
     Nothing -> invalidArgs [T.pack "unknown feed ID"]
 
 putFeedR :: D.FeedId -> Handler Value
-putFeedR feedId = withAuth $ do
+putFeedR feedId = do
   config <- getConfig
   feedInput <- requireJsonBody
   feed <- liftIO $ F.updateFeed config feedId feedInput
   returnJson feed
 
 deleteFeedR :: D.FeedId -> Handler ()
-deleteFeedR feedId = withAuth $ do
+deleteFeedR feedId = do
   config <- getConfig
   liftIO $ F.deleteFeed config feedId
 
 getItemsR :: D.FeedId -> Handler Value
-getItemsR feedId = withAuth $ do
+getItemsR feedId = do
   mend <- lookupGetParam "end"
   mmax <- lookupGetParam "max"
   light <- lookupGetFlag "descriptions-only"
@@ -89,7 +86,7 @@ getItemsR feedId = withAuth $ do
   returnJson items
 
 getSearchR :: Handler Value
-getSearchR = withAuth $ do
+getSearchR = do
   mq <- fmap T.unpack `fmap` lookupGetParam "q"
   mend <- lookupGetParam "end"
   mmax <- lookupGetParam "max"
@@ -106,7 +103,7 @@ setBoolValueR :: (C.Configuration -> D.ItemId -> Bool -> IO ())
               -> D.FeedId
               -> D.ItemId
               -> Handler ()
-setBoolValueR setter feedId itemId = withAuth $ do
+setBoolValueR setter feedId itemId = do
   mvalue <- lookupPostParam "value"
   case decode mvalue of
     Just value -> do
@@ -115,7 +112,7 @@ setBoolValueR setter feedId itemId = withAuth $ do
     Nothing -> invalidArgs [T.pack "value"]
 
 getItemR :: D.FeedId -> D.ItemId -> Handler Value
-getItemR feedId itemId = withAuth $ do
+getItemR feedId itemId = do
   config <- getConfig
   mitem <- liftIO $ F.getItem config itemId
   case mitem of
@@ -129,7 +126,7 @@ postItemStarredR :: D.FeedId -> D.ItemId -> Handler ()
 postItemStarredR = setBoolValueR F.setItemStarred
 
 postFeedReadAllR :: D.FeedId -> Handler ()
-postFeedReadAllR feedId = withAuth $ do
+postFeedReadAllR feedId = do
   config <- getConfig
   liftIO $ F.markAllAsRead config feedId
 
@@ -140,10 +137,16 @@ loadConfiguration file = do
     Just x -> return x
     Nothing -> error "config parse error"
 
+corsResourcePolicy _ = Just
+  Cors.simpleCorsResourcePolicy {
+    Cors.corsMethods = "PUT" : Cors.simpleMethods
+  }
+
 main :: IO ()
 main = do
   [arg] <- getArgs
   config <- loadConfiguration arg
   D.initializeDb config
   startFetcher config
-  warp 3000 (HelloWorld config)
+  app <- toWaiApp (HelloWorld config)
+  run 3000 (Cors.cors corsResourcePolicy app)

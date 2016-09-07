@@ -39,4 +39,6 @@ executable server
                       , http-types
                       , mtl
                       , unexceptionalio
+                      , warp
+                      , wai-cors
   
