@@ -139,7 +139,7 @@ loadConfiguration file = do
 
 corsResourcePolicy _ = Just
   Cors.simpleCorsResourcePolicy {
-    Cors.corsMethods = "PUT" : Cors.simpleMethods
+    Cors.corsMethods = "PUT" : "DELETE" : Cors.simpleMethods
   }
 
 main :: IO ()
