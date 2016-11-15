@@ -1,3 +1,4 @@
+{-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -38,6 +39,8 @@ import Data.Time.RFC2822 (parseTimeRFC2822)
 import Data.Time.RFC3339 (parseTimeRFC3339)
 import Data.Time.Clock.POSIX (utcTimeToPOSIXSeconds, posixSecondsToUTCTime)
 import Control.Applicative ((<|>))
+import Control.Monad.Reader (ReaderT)
+import Control.Monad.IO.Class (MonadIO)
 import Web.PathPieces (toPathPiece)
 import Html (cleanupHtml)
 
@@ -110,6 +113,8 @@ instance ToJSON Item where
             , "author" .= author
             ]
 
+type DbLike m backend = (MonadIO m, PersistQuery backend, PersistStore backend, PersistUnique backend, PersistRecordBackend D.Feed backend, PersistRecordBackend D.Item backend)
+
 orElse :: Maybe a -> a -> a
 orElse m x = maybe x id m
 
@@ -152,8 +157,8 @@ feedToData origin defaultDate feedId feed = map (ditem feedId) (getFeedItems fee
                 author = getItemAuthor item `orElse` ""
 
 -- Inserts or update a data feed and associated Items in the database
-insertOrUpdateData :: C.Configuration -> [D.Item] -> IO ()
-insertOrUpdateData config newItems = D.runDb config $ do
+insertOrUpdateData :: DbLike m backend => [D.Item] -> ReaderT backend m ()
+insertOrUpdateData newItems = do
   mapM_ insertOrUpdateItem newItems
 
   where insertOrUpdateItem newItem = do
@@ -172,38 +177,38 @@ insertOrUpdateData config newItems = D.runDb config $ do
                                       (D.itemGuid newItem)
 
 -- set an Item's 'read' status
-setItemRead :: C.Configuration -> D.ItemId -> Bool -> IO ()
-setItemRead config itemKey value = D.runDb config $ update itemKey [ D.ItemRead =. value ]
+setItemRead :: DbLike m backend => D.ItemId -> Bool -> ReaderT backend m ()
+setItemRead itemKey value = update itemKey [ D.ItemRead =. value ]
 
 -- set an Item's 'read' status
-setItemStarred :: C.Configuration -> D.ItemId -> Bool -> IO ()
-setItemStarred config itemKey value = D.runDb config $ update itemKey [ D.ItemStarred =. value ]
+setItemStarred :: DbLike m backend => D.ItemId -> Bool -> ReaderT backend m ()
+setItemStarred itemKey value = update itemKey [ D.ItemStarred =. value ]
 
 -- marks all items in a feed as read
-markAllAsRead :: C.Configuration -> D.FeedId -> IO ()
-markAllAsRead config feedKey = D.runDb config $ do
+markAllAsRead :: DbLike m backend => D.FeedId -> ReaderT backend m ()
+markAllAsRead feedKey = do
   itemKeys <- selectKeysList [D.ItemParent ==. feedKey, D.ItemRead ==. False] []
   mapM_ markAsRead itemKeys
     where markAsRead itemKey = update itemKey [ D.ItemRead =. True ]
 
 -- get one item
-getItem :: C.Configuration
-        -> D.ItemId
-        -> IO (Maybe Item)
-getItem config itemId = D.runDb config $ do
+getItem :: DbLike m backend
+        => D.ItemId
+        -> ReaderT backend m (Maybe Item)
+getItem itemId = do
   mitem <- get itemId
   return $ fmap (dataToMessageItem False itemId) mitem
 
 -- get all items in a feed
-getItems :: C.Configuration
-         -> Bool -- descriptions only
+getItems :: DbLike m backend
+         => Bool -- descriptions only
          -> Bool -- unread only
          -> Bool -- starred only
          -> Either D.FeedId String -- feed ID or query
          -> Maybe Int -- end date
          -> Maybe Int -- max items returned
-         -> IO [Item]
-getItems config light unread starred feedIdOrQuery mend mmax = D.runDb config $ do
+         -> ReaderT backend m [Item]
+getItems light unread starred feedIdOrQuery mend mmax = do
   items <- selectList filters options
   return $ map entityToMessage items
 
@@ -246,8 +251,8 @@ dataToMessageFeed feedKey (D.Feed title url) = do
   return $ Feed (toPathPiece feedKey) title url (length items)
 
 -- get a feed by id
-getFeed :: C.Configuration -> D.FeedId -> IO (Maybe Feed)
-getFeed config feedId = D.runDb config $ do
+getFeed :: DbLike m backend => D.FeedId -> ReaderT backend m (Maybe Feed)
+getFeed feedId = do
   mfeed <- get feedId
   case mfeed of
     Just feed -> do
@@ -257,43 +262,44 @@ getFeed config feedId = D.runDb config $ do
 
 -- create a new feed
 createFeed
-  :: C.Configuration
-  -> D.Feed
-  -> IO Feed
-createFeed config feed = D.runDb config $ do
+  :: DbLike m backend
+  => D.Feed
+  -> ReaderT backend m Feed
+createFeed feed = do
   feedId <- insert feed
   dataToMessageFeed feedId feed
 
 -- delete a feed given its ID
 deleteFeed
-  :: C.Configuration
-  -> D.FeedId
-  -> IO ()
-deleteFeed config feedId = D.runDb config $ do
+  :: DbLike m backend
+  => D.FeedId
+  -> ReaderT backend m ()
+deleteFeed feedId = do
   delete feedId
   deleteWhere [D.ItemParent ==. feedId]
 
 -- replaces a feed's definition
 updateFeed
-  :: C.Configuration
-  -> D.FeedId
+  :: DbLike m backend
+  => D.FeedId
   -> D.Feed
-  -> IO Feed
-updateFeed config feedId feed = D.runDb config $ do
+  -> ReaderT backend m Feed
+updateFeed feedId feed = do
   replace feedId feed
   dataToMessageFeed feedId feed
 
+
 -- get all the feeds from the database as messages
-getAllFeeds :: C.Configuration -> IO [Feed]
-getAllFeeds config = D.runDb config $ do
+getAllFeeds :: DbLike m backend => ReaderT backend m [Feed]
+getAllFeeds = do
   feeds <- selectList [] []
   mapM fill feeds
 
   where fill (Entity key feed) = dataToMessageFeed key feed
 
 -- get all feed URLs along with their feed IDs
-getAllFeedUrls :: C.Configuration -> IO [(D.FeedId, String)]
-getAllFeedUrls config = D.runDb config $ do
+getAllFeedUrls :: DbLike m backend => ReaderT backend m [(D.FeedId, String)]
+getAllFeedUrls = do
   feeds <- selectList [] []
   mapM selectUrl feeds
 

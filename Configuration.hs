@@ -8,6 +8,7 @@ import Safe (readMay)
 
 data Configuration = Configuration
   { database :: String
+  , numDatabaseConnections :: Int
   , refreshDelayMicros :: Int
   }
   deriving (Show, Read)

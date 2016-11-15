@@ -1,3 +1,4 @@
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TypeFamilies, QuasiQuotes, MultiParamTypeClasses,
              TemplateHaskell, OverloadedStrings, ViewPatterns #-}
 
@@ -7,16 +8,23 @@ import Yesod
 import qualified Data as D
 import qualified Feeds as F
 import qualified Configuration as C
+import Database.Persist.Sql (SqlBackend, ConnectionPool, runSqlPool)
+import Database.Persist.Sqlite (withSqlitePool)
 import Fetcher
 import Safe (readMay)
 import Data.Text as T
 import System.Environment (getArgs)
 import Network.Wai.Handler.Warp (run)
 import qualified Network.Wai.Middleware.Cors as Cors
+import Control.Monad.Logger (runStderrLoggingT)
+import Control.Monad.Reader (ReaderT)
 
-data HelloWorld = HelloWorld { configuration :: C.Configuration }
+data App = App
+  { configuration :: C.Configuration
+  , connectionPool :: ConnectionPool
+  }
 
-mkYesod "HelloWorld" [parseRoutes|
+mkYesod "App" [parseRoutes|
 /feeds FeedsR GET POST
 /feeds/#D.FeedId FeedR GET PUT DELETE
 /feeds/#D.FeedId/items ItemsR GET
@@ -27,7 +35,14 @@ mkYesod "HelloWorld" [parseRoutes|
 /search SearchR GET
 |]
 
-instance Yesod HelloWorld
+instance Yesod App
+
+instance YesodPersist App where
+  type YesodPersistBackend App = SqlBackend
+
+  runDB action = do
+    App _ pool <- getYesod
+    runSqlPool action pool
 
 getConfig :: Handler C.Configuration
 getConfig = configuration `fmap` getYesod
@@ -43,20 +58,20 @@ lookupGetFlag flagName = do
 getFeedsR :: Handler Value
 getFeedsR = do
   config <- getConfig
-  feeds <- liftIO $ F.getAllFeeds config
+  feeds <- runDB $ F.getAllFeeds
   returnJson feeds
 
 postFeedsR :: Handler Value
 postFeedsR = do
   inputFeed <- requireJsonBody
   config <- getConfig
-  feed <- liftIO $ F.createFeed config inputFeed
+  feed <- runDB $ F.createFeed inputFeed
   returnJson feed
 
 getFeedR :: D.FeedId -> Handler Value
 getFeedR feedId = do
   config <- getConfig
-  mfeed <- liftIO $ F.getFeed config feedId
+  mfeed <- runDB $ F.getFeed feedId
   case mfeed of
     Just feed -> returnJson feed
     Nothing -> invalidArgs [T.pack "unknown feed ID"]
@@ -65,13 +80,13 @@ putFeedR :: D.FeedId -> Handler Value
 putFeedR feedId = do
   config <- getConfig
   feedInput <- requireJsonBody
-  feed <- liftIO $ F.updateFeed config feedId feedInput
+  feed <- runDB $ F.updateFeed feedId feedInput
   returnJson feed
 
 deleteFeedR :: D.FeedId -> Handler ()
 deleteFeedR feedId = do
   config <- getConfig
-  liftIO $ F.deleteFeed config feedId
+  runDB $ F.deleteFeed feedId
 
 getItemsR :: D.FeedId -> Handler Value
 getItemsR feedId = do
@@ -81,8 +96,8 @@ getItemsR feedId = do
   unread <- lookupGetFlag "unread-only"
   starred <- lookupGetFlag "starred-only"
   config <- getConfig
-  items <- liftIO $ F.getItems config light unread starred
-                               (Left feedId) (decode mend) (decode mmax)
+  items <- runDB $ F.getItems light unread starred (Left feedId)
+                              (decode mend) (decode mmax)
   returnJson items
 
 getSearchR :: Handler Value
@@ -95,11 +110,11 @@ getSearchR = do
   starred <- lookupGetFlag "starred-only"
   config <- getConfig
   let q = maybe "" id mq
-  items <- liftIO $ F.getItems config light unread starred
-                               (Right q) (decode mend) (decode mmax)
+  items <- runDB $ F.getItems light unread starred (Right q)
+                              (decode mend) (decode mmax)
   returnJson items
 
-setBoolValueR :: (C.Configuration -> D.ItemId -> Bool -> IO ())
+setBoolValueR :: (D.ItemId -> Bool -> ReaderT SqlBackend Handler ())
               -> D.FeedId
               -> D.ItemId
               -> Handler ()
@@ -108,13 +123,13 @@ setBoolValueR setter feedId itemId = do
   case decode mvalue of
     Just value -> do
       config <- getConfig
-      liftIO $ setter config itemId value
+      runDB $ setter itemId value
     Nothing -> invalidArgs [T.pack "value"]
 
 getItemR :: D.FeedId -> D.ItemId -> Handler Value
 getItemR feedId itemId = do
   config <- getConfig
-  mitem <- liftIO $ F.getItem config itemId
+  mitem <- runDB $ F.getItem itemId
   case mitem of
     Just item -> returnJson item
     Nothing -> invalidArgs [T.pack "unknown item ID"]
@@ -128,7 +143,7 @@ postItemStarredR = setBoolValueR F.setItemStarred
 postFeedReadAllR :: D.FeedId -> Handler ()
 postFeedReadAllR feedId = do
   config <- getConfig
-  liftIO $ F.markAllAsRead config feedId
+  runDB $ F.markAllAsRead feedId
 
 loadConfiguration :: FilePath -> IO C.Configuration
 loadConfiguration file = do
@@ -146,8 +161,10 @@ corsResourcePolicy _ = Just
 main :: IO ()
 main = do
   [arg] <- getArgs
-  config <- loadConfiguration arg
-  D.initializeDb config
-  startFetcher config
-  app <- toWaiApp (HelloWorld config)
-  run 3000 (Cors.cors corsResourcePolicy app)
+  config@C.Configuration{..} <- loadConfiguration arg
+  runStderrLoggingT $
+    withSqlitePool (T.pack database) numDatabaseConnections $ \pool ->
+      liftIO $ do
+        startFetcher pool refreshDelayMicros
+        app <- toWaiApp (App config pool)
+        run 3000 (Cors.cors corsResourcePolicy app)

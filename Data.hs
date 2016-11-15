@@ -13,9 +13,6 @@ import Database.Persist.Sql
 import Database.Persist.Sqlite
 import Database.Persist.TH
 import Data.Time
-import Control.Monad.IO.Class (liftIO)
-import Control.Monad.Trans.Resource (runResourceT)
-import qualified Data.Text as T
 
 share [mkPersist sqlSettings, mkMigrate "migrateAll"] [persistUpperCase|
 Item json
@@ -35,10 +32,3 @@ Feed json
     origin String
     UniqueOrigin origin
 |]
-
-runDb :: Configuration -> ReaderT SqlBackend (NoLoggingT (ResourceT IO)) a -> IO a
-runDb config = runSqlite (T.pack $ database config)
-
-initializeDb :: Configuration -> IO ()
-initializeDb config = runDb config (runMigration migrateAll)
-

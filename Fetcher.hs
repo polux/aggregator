@@ -1,3 +1,4 @@
+{-# LANGUAGE PartialTypeSignatures #-}
 module Fetcher (
   startFetcher
 ) where
@@ -15,15 +16,20 @@ import Data.ByteString.Lazy.UTF8 (toString)
 import qualified Data.ByteString.Lazy as B
 import Network.URI (parseURI)
 import Control.Monad.Except
+import Control.Monad.Reader (ReaderT)
 import UnexceptionalIO (syncIO)
+import Database.Persist.Sql (runSqlPool, ConnectionPool, SqlBackend)
 
 logMsg str = do
   now <- getCurrentTime
   putStrLn ("[" ++ show now ++ "] " ++ str)
   hFlush stdout
 
-fetchAndInsert :: Configuration -> D.FeedId -> String -> IO ()
-fetchAndInsert config feedId url = do
+runDb :: ConnectionPool -> ReaderT SqlBackend IO a -> IO a
+runDb pool action = runSqlPool action pool
+
+fetchAndInsert :: ConnectionPool -> D.FeedId -> String -> IO ()
+fetchAndInsert pool feedId url = do
    logMsg ("fetching " ++ url)
    ebody <- syncIO (simpleHttp url)
    case ebody of
@@ -33,17 +39,17 @@ fetchAndInsert config feedId url = do
          Nothing -> logMsg ("failed to parse " ++ url)
          Just feed -> do
            now <- getCurrentTime
-           insertOrUpdateData config (feedToData url now feedId feed)
+           runDb pool $ insertOrUpdateData (feedToData url now feedId feed)
 
-fetchAll config = do
-  urls <- getAllFeedUrls config
-  mapM_ (uncurry (fetchAndInsert config)) urls
+fetchAll pool = do
+  urls <- runDb pool $ getAllFeedUrls
+  mapM_ (uncurry (fetchAndInsert pool)) urls
 
-loop config = do
+loop pool refreshDelayMicros = do
   logMsg "updating feeds"
-  fetchAll config
+  fetchAll pool
   logMsg "done, sleeping"
-  threadDelay (refreshDelayMicros config)
-  loop config
+  threadDelay refreshDelayMicros
+  loop pool refreshDelayMicros
 
-startFetcher config = forkIO (loop config)
+startFetcher pool refreshDelayMicros = forkIO (loop pool refreshDelayMicros)
