@@ -5,6 +5,9 @@
 module Data where
 
 import Configuration
+import Control.Monad.Logger
+import Control.Monad.Reader
+import Control.Monad.Trans.Resource
 import Database.Persist
 import Database.Persist.Sql
 import Database.Persist.Sqlite
@@ -33,6 +36,7 @@ Feed json
     UniqueOrigin origin
 |]
 
+runDb :: Configuration -> ReaderT SqlBackend (NoLoggingT (ResourceT IO)) a -> IO a
 runDb config = runSqlite (T.pack $ database config)
 
 initializeDb :: Configuration -> IO ()
