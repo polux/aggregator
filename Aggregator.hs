@@ -138,9 +138,10 @@ loadConfiguration file = do
     Nothing -> error "config parse error"
 
 corsResourcePolicy _ = Just
-  Cors.simpleCorsResourcePolicy {
-    Cors.corsMethods = "PUT" : "DELETE" : Cors.simpleMethods
-  }
+  Cors.simpleCorsResourcePolicy
+    { Cors.corsMethods = "PUT" : "DELETE" : Cors.simpleMethods
+    , Cors.corsRequestHeaders = Cors.simpleHeaders
+    }
 
 main :: IO ()
 main = do
