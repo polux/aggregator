@@ -247,8 +247,8 @@ dataToMessageItem light itemKey (D.Item parentId _ title url content date author
 
 -- converts a database feed entity and a list of message items into a message feed
 dataToMessageFeed feedKey (D.Feed title url) = do
-  items <- selectKeysList [D.ItemParent ==. feedKey, D.ItemRead ==. False] []
-  return $ Feed (toPathPiece feedKey) title url (length items)
+  numItems <- count [D.ItemParent ==. feedKey, D.ItemRead ==. False]
+  return $ Feed (toPathPiece feedKey) title url numItems
 
 -- get a feed by id
 getFeed :: DbLike m backend => D.FeedId -> ReaderT backend m (Maybe Feed)
