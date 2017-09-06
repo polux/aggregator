@@ -54,7 +54,7 @@ fetchAll pool = do
   -- support concurrent modifications. So we fetch everything in parallel and
   -- then make one big write.
   logMsg "done fetching feeds, writing everything to database"
-  runDb pool $ mapM_ insertOrUpdateData items
+  runDb pool $ insertOrUpdateData (concat items)
 
 loop pool refreshDelayMicros = do
   logMsg "updating feeds"
