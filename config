@@ -1,4 +1,5 @@
 Configuration
   { database = "foo"
+  , numDatabaseConnections = 1
   , refreshDelayMicros = 600000000
   }

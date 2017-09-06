@@ -42,3 +42,4 @@ executable server
                       , warp
                       , wai-cors
                       , monad-logger
+                      , async

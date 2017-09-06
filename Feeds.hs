@@ -7,6 +7,7 @@
 module Feeds (
   Feed(..),
   Item(..),
+  DbLike,
   feedToData,
 
   getFeed,
