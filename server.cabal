@@ -43,3 +43,5 @@ executable server
                       , wai-cors
                       , monad-logger
                       , async
+
+  ghc-options: -O2 -threaded
