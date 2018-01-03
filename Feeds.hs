@@ -217,8 +217,8 @@ getItems light unread starred feedIdOrQuery mend mmax = do
                          (\query -> contains D.ItemTitle (words query))
                          feedIdOrQuery
                 ++ [D.ItemDate <. millisToUtc end | end <- maybeToList mend]
-                ++ (if unread then [D.ItemRead ==. False] else [])
-                ++ (if starred then [D.ItemStarred ==. True] else [])
+                ++ [D.ItemRead ==. False | unread]
+                ++ [D.ItemStarred ==. True | starred]
 
         options =  [Desc D.ItemDate]
                 ++ [LimitTo max | max <- maybeToList mmax ]
