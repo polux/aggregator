@@ -276,8 +276,8 @@ deleteFeed
   => D.FeedId
   -> ReaderT backend m ()
 deleteFeed feedId = do
-  delete feedId
   deleteWhere [D.ItemParent ==. feedId]
+  delete feedId
 
 -- replaces a feed's definition
 updateFeed
