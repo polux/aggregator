@@ -54,7 +54,24 @@ fetchAll pool = do
   -- support concurrent modifications. So we fetch everything in parallel and
   -- then make one big write.
   logMsg "done fetching feeds, writing everything to database"
-  runDb pool $ insertOrUpdateData (concat items)
+  -- Even though sometimes writing to sqlite throws an error because the
+  -- filesystem lock hasn't been released yet (I don't who holds it). The right
+  -- way of avoiding this would be to protect writes to the pool with an mvar
+  -- acting as a lock. For now we use something cheaper: we catch the IO error
+  -- and retry up to three times.
+  tryManyTimes 3 $ runDb pool $ insertOrUpdateData (concat items)
+  logMsg "done writing everything to database"
+
+tryManyTimes 0 _ = logMsg "tried to many times, giving up"
+tryManyTimes n action = do
+  eresult <- syncIO action
+  case eresult of
+    Left e -> do
+      logMsg (show e)
+      logMsg "retrying"
+      tryManyTimes (n-1) action
+    Right result ->
+      return result
 
 loop pool refreshDelayMicros = do
   logMsg "updating feeds"
