@@ -1,4 +1,6 @@
 {-# LANGUAGE PartialTypeSignatures #-}
+{-# LANGUAGE OverloadedStrings #-}
+
 module Fetcher (
   startFetcher
 ) where
@@ -8,7 +10,7 @@ import qualified Text.Feed.Types as F
 import qualified Text.Feed.Import as F
 import qualified Data as D
 import Feeds (feedToData, insertOrUpdateData, getAllFeedUrls)
-import Network.HTTP.Conduit (simpleHttp)
+import Network.HTTP.Conduit (newManager, tlsManagerSettings, parseUrlThrow, requestHeaders, httpLbs, responseBody)
 import Control.Concurrent
 import System.IO
 import Data.Time.Clock(getCurrentTime)
@@ -32,7 +34,11 @@ runDb pool action = runSqlPool action pool
 fetch :: ConnectionPool -> D.FeedId -> String -> IO [D.Item]
 fetch pool feedId url = do
    logMsg ("fetching " ++ url)
-   ebody <- syncIO (simpleHttp url)
+   ebody <- syncIO $ do
+     man <- newManager tlsManagerSettings
+     req <- liftIO $ parseUrlThrow url
+     let req' = req { requestHeaders = ("User-Agent", "reader@1.0 by /u/polux2001") : ("Connection", "close") : requestHeaders req }
+     responseBody <$> httpLbs req' man
    case ebody of
      Left e -> do
        logMsg ("failed to fetch " ++ url ++ ": " ++ show e)
