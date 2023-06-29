@@ -12,6 +12,7 @@ import Database.Persist.Sql (SqlBackend, ConnectionPool, runSqlPool)
 import Database.Persist.Sqlite (withSqlitePool)
 import Fetcher
 import Safe (readMay)
+import Data.Maybe (fromMaybe, isJust)
 import Data.Text as T
 import System.Environment (getArgs)
 import Network.Wai.Handler.Warp (run)
@@ -53,17 +54,17 @@ decode mx = mx >>= readMay . T.unpack
 lookupGetFlag :: Text -> Handler Bool
 lookupGetFlag flagName = do
   mparam <- lookupGetParam flagName
-  return $ maybe False (const True) mparam
+  return $ isJust mparam
 
 getFeedsR :: Handler Value
 getFeedsR = do
   config <- getConfig
-  feeds <- runDB $ F.getAllFeeds
+  feeds <- runDB F.getAllFeeds
   returnJson feeds
 
 postFeedsR :: Handler Value
 postFeedsR = do
-  inputFeed <- requireJsonBody
+  inputFeed <- requireCheckJsonBody
   config <- getConfig
   feed <- runDB $ F.createFeed inputFeed
   returnJson feed
@@ -79,7 +80,7 @@ getFeedR feedId = do
 putFeedR :: D.FeedId -> Handler Value
 putFeedR feedId = do
   config <- getConfig
-  feedInput <- requireJsonBody
+  feedInput <- requireCheckJsonBody
   feed <- runDB $ F.updateFeed feedId feedInput
   returnJson feed
 
@@ -109,7 +110,7 @@ getSearchR = do
   unread <- lookupGetFlag "unread-only"
   starred <- lookupGetFlag "starred-only"
   config <- getConfig
-  let q = maybe "" id mq
+  let q = fromMaybe "" mq
   items <- runDB $ F.getItems light unread starred (Right q)
                               (decode mend) (decode mmax)
   returnJson items

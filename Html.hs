@@ -17,7 +17,7 @@ removeBrs (t:tags) = t:removeBrs tags
 removeBrs [] = []
 
 cleanupHtml' :: [TagTree String] -> [TagTree String]
-cleanupHtml' t = transformTree cleanup t
+cleanupHtml' = transformTree cleanup
   where cleanup (TagBranch "iframe" _ _) = []
         cleanup (TagBranch "img" _ _) = []
         cleanup (TagBranch tag _ children) | tag /= "br" && onlyBlank children = []
@@ -35,7 +35,7 @@ cleanupHtml' t = transformTree cleanup t
         whitelistedAttr _ = False
 
         onlyBlank = all isBlank
-       
+
         isBlank (TagLeaf (TagOpen "br" _)) = True
         isBlank (TagLeaf (TagText txt)) = all isSpace txt
         isBlank _ = False

@@ -1,7 +1,7 @@
 name:                server
 version:             0.1.0.0
 synopsis:            RSS aggregator backend
--- description:         
+-- description:
 license:             BSD3
 license-file:        LICENSE
 author:              Paul Brauner
@@ -12,9 +12,9 @@ build-type:          Simple
 cabal-version:       >=1.8
 
 executable server
-  main-is:            Aggregator.hs 
+  main-is:            Aggregator.hs
   other-modules:      Configuration, Data, Feeds, Fetcher, Html
-   
+
   build-depends:        base
                       , yesod
                       , persistent
@@ -24,7 +24,7 @@ executable server
                       , resourcet
                       , feed
                       , aeson
-                      , time
+                      , time < 1.10
                       , timerep
                       , safe
                       , text

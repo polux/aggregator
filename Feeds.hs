@@ -3,6 +3,8 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+{-# HLINT ignore "Avoid lambda" #-}
 
 module Feeds (
   Feed(..),
@@ -33,7 +35,7 @@ import qualified Data.Text as T
 import Text.Feed.Query
 import Database.Persist
 import Data.Aeson
-import Data.Maybe (maybeToList, catMaybes)
+import Data.Maybe (maybeToList, catMaybes, fromMaybe)
 import Data.Time.Clock (UTCTime)
 import Data.Time.LocalTime (zonedTimeToUTC)
 import Data.Time.RFC2822 (parseTimeRFC2822)
@@ -117,7 +119,7 @@ instance ToJSON Item where
 type DbLike m backend = (MonadIO m, PersistQuery backend, PersistStore backend, PersistUnique backend, PersistRecordBackend D.Feed backend, PersistRecordBackend D.Item backend)
 
 orElse :: Maybe a -> a -> a
-orElse m x = maybe x id m
+orElse m x = fromMaybe x m
 
 millisToUtc :: Int -> UTCTime
 millisToUtc millis = posixSecondsToUTCTime $ fromRational (toEnum millis / 1000)
@@ -135,7 +137,7 @@ extractDescription :: ItemGetter String
 extractDescription (Feed.RSSItem  e) = RSS.rssItemDescription e
 extractDescription (Feed.RSS1Item i) = RSS1.itemDesc i
 extractDescription (Feed.XMLItem _) = Nothing
-extractDescription (Feed.AtomItem e) = fmap contentToStr $ Atom.entryContent e
+extractDescription (Feed.AtomItem e) = contentToStr <$> Atom.entryContent e
   where contentToStr (Atom.TextContent s) = s
         contentToStr (Atom.HTMLContent s) = s
         contentToStr (Atom.XHTMLContent s) = XML.strContent s
@@ -220,15 +222,14 @@ getItems light unread starred feedIdOrQuery mend mmax = do
                 ++ [D.ItemRead ==. False | unread]
                 ++ [D.ItemStarred ==. True | starred]
 
-        options =  [Desc D.ItemDate]
-                ++ [LimitTo max | max <- maybeToList mmax ]
+        options =  Desc D.ItemDate : [LimitTo max | max <- maybeToList mmax ]
 
         entityToMessage (Entity key item) = dataToMessageItem light key item
 
         contains field values = [like field value | value <- values]
 
         like field value = Filter field
-                                  (Left $ "%" ++ value ++ "%")
+                                  (FilterValue $ "%" ++ value ++ "%")
                                   (BackendSpecificFilter "like")
 
 

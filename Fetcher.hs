@@ -19,7 +19,7 @@ import qualified Data.ByteString.Lazy as B
 import Network.URI (parseURI)
 import Control.Monad.Except
 import Control.Monad.Reader (ReaderT)
-import UnexceptionalIO (syncIO)
+import UnexceptionalIO (fromIO)
 import Database.Persist.Sql (runSqlPool, ConnectionPool, SqlBackend)
 import Control.Concurrent.Async (mapConcurrently, async)
 
@@ -34,7 +34,7 @@ runDb pool action = runSqlPool action pool
 fetch :: ConnectionPool -> D.FeedId -> String -> IO [D.Item]
 fetch pool feedId url = do
    logMsg ("fetching " ++ url)
-   ebody <- syncIO $ do
+   ebody <- fromIO $ do
      man <- newManager tlsManagerSettings
      req <- liftIO $ parseUrlThrow url
      let req' = req { requestHeaders = ("User-Agent", "reader@1.0 by /u/polux2001") : ("Connection", "close") : requestHeaders req }
@@ -54,7 +54,7 @@ fetch pool feedId url = do
            return (feedToData url now feedId feed)
 
 fetchAll pool = do
-  urls <- runDb pool $ getAllFeedUrls
+  urls <- runDb pool getAllFeedUrls
   items <- mapConcurrently (uncurry (fetch pool)) urls
   -- We can't have each 'fetch' write to the database because SQLite doesn't
   -- support concurrent modifications. So we fetch everything in parallel and
@@ -70,7 +70,7 @@ fetchAll pool = do
 
 tryManyTimes 0 _ = logMsg "tried to many times, giving up"
 tryManyTimes n action = do
-  eresult <- syncIO action
+  eresult <- fromIO action
   case eresult of
     Left e -> do
       logMsg (show e)

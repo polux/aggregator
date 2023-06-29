@@ -1,6 +1,18 @@
-{-# LANGUAGE QuasiQuotes, TemplateHaskell, TypeFamilies, OverloadedStrings,
-             GADTs, FlexibleContexts, EmptyDataDecls, MultiParamTypeClasses,
-             GeneralizedNewtypeDeriving, FlexibleInstances #-}
+{-# LANGUAGE EmptyDataDecls             #-}
+{-# LANGUAGE FlexibleContexts           #-}
+{-# LANGUAGE GADTs                      #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE MultiParamTypeClasses      #-}
+{-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE QuasiQuotes                #-}
+{-# LANGUAGE TemplateHaskell            #-}
+{-# LANGUAGE TypeFamilies               #-}
+{-# LANGUAGE DerivingStrategies #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE TypeOperators #-}
 
 module Data where
 
@@ -15,7 +27,7 @@ import Database.Persist.TH
 import Data.Time
 
 share [mkPersist sqlSettings, mkMigrate "migrateAll"] [persistUpperCase|
-Item json
+ Item json
     parent FeedId
     guid String
     UniqueItem parent guid
@@ -27,7 +39,7 @@ Item json
     starred Bool
     read Bool
     deriving Show
-Feed json
+ Feed json
     title String
     origin String
     UniqueOrigin origin
