@@ -8,7 +8,7 @@ import Yesod
 import qualified Data as D
 import qualified Feeds as F
 import qualified Configuration as C
-import Database.Persist.Sql (SqlBackend, ConnectionPool, runSqlPool)
+import Database.Persist.Sql (SqlBackend, ConnectionPool, runSqlPool, runMigration)
 import Database.Persist.Sqlite (withSqlitePool)
 import Fetcher
 import Safe (readMay)
@@ -166,6 +166,7 @@ main = do
   runStderrLoggingT $
     withSqlitePool (T.pack database) numDatabaseConnections $ \pool ->
       liftIO $ do
+        runSqlPool (runMigration D.migrateAll) pool
         startFetcher pool refreshDelayMicros
         app <- toWaiApp (App config pool)
         run 3000 (Cors.cors corsResourcePolicy app)
