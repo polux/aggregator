@@ -116,7 +116,14 @@ instance ToJSON Item where
             , "author" .= author
             ]
 
-type DbLike m backend = (MonadIO m, PersistQuery backend, PersistStore backend, PersistUnique backend, PersistRecordBackend D.Feed backend, PersistRecordBackend D.Item backend)
+type DbLike m backend =
+  ( MonadIO m
+  , PersistQuery backend
+  , PersistStore backend
+  , PersistUnique backend
+  , PersistRecordBackend D.Feed backend
+  , PersistRecordBackend D.Item backend
+  )
 
 orElse :: Maybe a -> a -> a
 orElse m x = fromMaybe x m
